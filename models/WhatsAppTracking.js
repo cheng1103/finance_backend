@@ -69,3 +69,5 @@ whatsappTrackingSchema.index({ year: 1, month: 1, day: 1 });
 whatsappTrackingSchema.index({ action: 1 });
 
 module.exports = mongoose.model('WhatsAppTracking', whatsappTrackingSchema);
+
+

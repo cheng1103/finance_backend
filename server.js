@@ -75,6 +75,10 @@ app.use('/api', whatsappRoutes);
 app.use('/api/customers', customerRoutes);
 app.use('/api/tracking', trackingRoutes);
 
+// Simple form submission routes
+const simpleFormRoutes = require('./routes/simpleForm');
+app.use('/api', simpleFormRoutes);
+
 // 404 error handling
 app.use('*', (req, res) => {
   res.status(404).json({

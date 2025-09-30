@@ -10,6 +10,7 @@ const customerSchema = new mongoose.Schema({
   email: {
     type: String,
     required: true,
+    unique: true,
     lowercase: true,
     trim: true
   },
@@ -22,28 +23,6 @@ const customerSchema = new mongoose.Schema({
   // WhatsApp 信息
   whatsappNumber: {
     type: String,
-    default: function() {
-      // 如果电话号码以+60开头，直接使用，否则添加+60
-      if (this.phone.startsWith('+60')) {
-        return this.phone;
-      } else if (this.phone.startsWith('60')) {
-        return '+' + this.phone;
-      } else if (this.phone.startsWith('0')) {
-        return '+6' + this.phone;
-      } else {
-        return '+60' + this.phone;
-      }
-    }
-  },
-
-  // 贷款信息
-  loanAmount: {
-    type: Number,
-    required: true
-  },
-  purpose: {
-    type: String,
-    required: true,
     trim: true
   },
 
@@ -59,12 +38,36 @@ const customerSchema = new mongoose.Schema({
     default: ''
   },
 
-  // 申请类型
-  inquiryType: {
-    type: String,
-    enum: ['quick_application', 'detailed_inquiry'],
-    required: true
-  },
+  // 贷款申请列表 (支持多个申请)
+  loanApplications: [{
+    amount: Number,
+    purpose: String,
+    status: {
+      type: String,
+      enum: ['pending', 'approved', 'rejected', 'cancelled'],
+      default: 'pending'
+    },
+    submittedAt: {
+      type: Date,
+      default: Date.now
+    },
+    notes: String
+  }],
+
+  // 联系咨询列表
+  inquiries: [{
+    subject: String,
+    message: String,
+    submittedAt: {
+      type: Date,
+      default: Date.now
+    },
+    status: {
+      type: String,
+      enum: ['new', 'in_progress', 'resolved'],
+      default: 'new'
+    }
+  }],
 
   // WhatsApp 跟进状态
   whatsappStatus: {
@@ -77,32 +80,37 @@ const customerSchema = new mongoose.Schema({
   followUpNotes: [{
     date: { type: Date, default: Date.now },
     note: String,
-    action: String // 'whatsapp_sent', 'called', 'email_sent', etc.
+    action: String, // 'whatsapp_sent', 'called', 'email_sent', etc.
+    addedBy: String
   }],
 
   // WhatsApp 互动记录
   whatsappInteractions: [{
     date: { type: Date, default: Date.now },
-    type: String, // 'message_sent', 'message_received', 'file_sent'
-    message: String
+    type: String, // 'message_sent', 'message_received', 'file_sent', 'whatsapp_opened'
+    message: String,
+    initiatedBy: String
   }],
 
   // 系统记录
-  source: {
-    type: String,
-    default: 'website'
+  metadata: {
+    source: {
+      type: String,
+      default: 'website'
+    },
+    ipAddress: String,
+    userAgent: String,
+    referrer: String
   },
-  ipAddress: String,
-  userAgent: String,
-  referrer: String,
 
   // 时间戳
-  createdAt: {
+  lastContact: {
     type: Date,
     default: Date.now
   },
-  lastContactedAt: {
-    type: Date
+  createdAt: {
+    type: Date,
+    default: Date.now
   },
   updatedAt: {
     type: Date,

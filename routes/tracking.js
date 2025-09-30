@@ -15,26 +15,32 @@ router.post('/visit', async (req, res) => {
       browser,
       os,
       country,
-      city
+      city,
+      timestamp,
+      userAgent,
+      referrer
     } = req.body;
 
     const visitorTracking = new VisitorTracking({
       ipAddress: req.ip,
-      userAgent: req.get('User-Agent'),
-      referrer: req.get('Referer') || '',
-      page,
-      pageTitle,
-      sessionId,
+      userAgent: userAgent || req.get('User-Agent'),
+      referrer: referrer || req.get('Referer') || '',
+      page: page || '/',
+      pageTitle: pageTitle || 'Unknown',
+      sessionId: sessionId || `session-${Date.now()}`,
       isNewVisitor: isNewVisitor !== undefined ? isNewVisitor : true,
       timeOnPage: timeOnPage || 0,
       deviceType: deviceType || 'desktop',
       browser,
       os,
       country,
-      city
+      city,
+      visitDate: timestamp ? new Date(timestamp) : new Date()
     });
 
     await visitorTracking.save();
+
+    console.log('✅ Page visit tracked:', page);
 
     res.json({
       success: true,
@@ -45,7 +51,51 @@ router.post('/visit', async (req, res) => {
   } catch (error) {
     console.error('Visit tracking error:', error);
     res.status(500).json({
+      success: false,
       error: 'Failed to track visit',
+      details: error.message
+    });
+  }
+});
+
+// POST /api/tracking/whatsapp-click - 记录WhatsApp点击
+router.post('/whatsapp-click', async (req, res) => {
+  try {
+    const { phoneNumber, source, timestamp } = req.body;
+
+    // You can create a simplified WhatsAppTracking model or add to VisitorTracking
+    const tracking = new VisitorTracking({
+      ipAddress: req.ip,
+      userAgent: req.get('User-Agent'),
+      referrer: req.get('Referer') || '',
+      page: '/whatsapp-click',
+      pageTitle: 'WhatsApp Click',
+      sessionId: `whatsapp-${Date.now()}`,
+      isNewVisitor: false,
+      timeOnPage: 0,
+      deviceType: 'unknown',
+      visitDate: timestamp ? new Date(timestamp) : new Date(),
+      metadata: {
+        type: 'whatsapp_click',
+        phoneNumber,
+        source
+      }
+    });
+
+    await tracking.save();
+
+    console.log('✅ WhatsApp click tracked:', phoneNumber, 'from', source);
+
+    res.json({
+      success: true,
+      message: 'WhatsApp click tracked successfully'
+    });
+
+  } catch (error) {
+    console.error('WhatsApp click tracking error:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to track WhatsApp click',
       details: error.message
     });
   }

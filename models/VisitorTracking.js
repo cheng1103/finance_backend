@@ -69,6 +69,12 @@ const visitorTrackingSchema = new mongoose.Schema({
   day: {
     type: Number,
     default: function() { return new Date().getDate(); }
+  },
+
+  // 额外元数据（用于特殊追踪）
+  metadata: {
+    type: mongoose.Schema.Types.Mixed,
+    default: {}
   }
 });
 
