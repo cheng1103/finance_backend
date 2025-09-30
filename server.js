@@ -47,13 +47,18 @@ app.use(limiter);
 // CORS configuration
 const corsOptions = {
   origin: [
-    process.env.FRONTEND_URL || 'https://eplatformcredit.com',
-    process.env.ADMIN_URL || 'https://admin.eplatformcredit.com',
+    'https://eplatformcredit.com',
+    'https://www.eplatformcredit.com',  // 添加 www 版本
+    'https://admin.eplatformcredit.com',
+    process.env.FRONTEND_URL,
+    process.env.ADMIN_URL,
     'http://localhost:3000',  // 开发环境
     'http://localhost:3002'   // 管理后台开发环境
-  ],
+  ].filter(Boolean), // 过滤掉 undefined 值
   credentials: true,
-  optionsSuccessStatus: 200
+  optionsSuccessStatus: 200,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With']
 };
 app.use(cors(corsOptions));
 
