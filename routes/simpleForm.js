@@ -54,7 +54,7 @@ router.post('/applications', simpleApplicationValidation, async (req, res) => {
       });
     }
 
-    const { name, email, phone, loanAmount, purpose, monthlyIncome } = req.body;
+    const { name, email, phone, loanAmount, purpose, monthlyIncome, company, position, address } = req.body;
 
     // Create or update customer record
     let customer = await Customer.findOne({ email });
@@ -64,6 +64,10 @@ router.post('/applications', simpleApplicationValidation, async (req, res) => {
       customer.name = name;
       customer.phone = phone;
       customer.whatsappNumber = phone; // Use phone as WhatsApp number
+      if (company) customer.company = company;
+      if (position) customer.position = position;
+      if (monthlyIncome) customer.monthlyIncome = monthlyIncome;
+      if (address) customer.address = address;
       customer.loanApplications.push({
         amount: parseFloat(loanAmount),
         purpose,
@@ -79,7 +83,10 @@ router.post('/applications', simpleApplicationValidation, async (req, res) => {
         email,
         phone,
         whatsappNumber: phone,
-        company: monthlyIncome || 'Not provided',
+        company: company || 'Not provided',
+        position: position || 'Not provided',
+        monthlyIncome: monthlyIncome || 'Not provided',
+        address: address || 'Not provided',
         loanApplications: [{
           amount: parseFloat(loanAmount),
           purpose,
@@ -103,9 +110,12 @@ router.post('/applications', simpleApplicationValidation, async (req, res) => {
     console.log('Name:', name);
     console.log('Email:', email);
     console.log('Phone:', phone);
+    console.log('Address:', address || 'Not provided');
+    console.log('Company:', company || 'Not provided');
+    console.log('Position:', position || 'Not provided');
+    console.log('Monthly Income:', monthlyIncome || 'Not provided');
     console.log('Loan Amount: RM', loanAmount);
     console.log('Purpose:', purpose);
-    console.log('Monthly Income:', monthlyIncome || 'Not provided');
     console.log('Timestamp:', new Date().toISOString());
     console.log('='.repeat(60));
 

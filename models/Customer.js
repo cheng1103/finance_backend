@@ -26,13 +26,23 @@ const customerSchema = new mongoose.Schema({
     trim: true
   },
 
-  // 可选信息
+  // Work information
   company: {
     type: String,
     trim: true,
     default: ''
   },
+  position: {
+    type: String,
+    trim: true,
+    default: ''
+  },
   monthlyIncome: {
+    type: String,
+    trim: true,
+    default: ''
+  },
+  address: {
     type: String,
     trim: true,
     default: ''
