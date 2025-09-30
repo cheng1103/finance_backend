@@ -46,7 +46,12 @@ app.use(limiter);
 
 // CORS configuration
 const corsOptions = {
-  origin: process.env.FRONTEND_URL || 'http://localhost:3000',
+  origin: [
+    process.env.FRONTEND_URL || 'https://eplatformcredit.com',
+    process.env.ADMIN_URL || 'https://admin.eplatformcredit.com',
+    'http://localhost:3000',  // 开发环境
+    'http://localhost:3002'   // 管理后台开发环境
+  ],
   credentials: true,
   optionsSuccessStatus: 200
 };
