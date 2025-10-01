@@ -77,19 +77,63 @@ if (process.env.NODE_ENV === 'development') {
   app.use(morgan('dev'));
 }
 
-// Rate limiting
-const limiter = rateLimit({
+// Rate limiting - Different limits for different types of requests
+const generalLimiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
   max: 100, // limit each IP to 100 requests per windowMs
   message: {
     error: 'Too many requests, please try again later'
-  }
+  },
+  standardHeaders: true,
+  legacyHeaders: false,
 });
-app.use(limiter);
+
+// Strict limiter for write operations (POST/PUT/DELETE)
+const writeLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 30, // limit each IP to 30 write operations per 15 minutes
+  message: {
+    error: 'Too many write operations, please slow down'
+  },
+  standardHeaders: true,
+  legacyHeaders: false,
+  skip: (req) => req.method === 'GET' || req.method === 'HEAD' || req.method === 'OPTIONS'
+});
+
+// Very strict limiter for sensitive operations
+const sensitiveOperationsLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 10, // Only 10 attempts per 15 minutes
+  message: {
+    error: 'Too many attempts on sensitive operation, please try again later'
+  },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
+// Apply general limiter to all routes
+app.use(generalLimiter);
+
+// Apply write limiter to all routes (will skip GET requests)
+app.use(writeLimiter);
 
 // Parse JSON request body
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
+
+// Cookie parser for session management
+const cookieParser = require('cookie-parser');
+app.use(cookieParser());
+
+// CSRF Protection
+const { csrfTokenMiddleware, csrfProtection, getCsrfToken } = require('./middleware/csrf');
+app.use(csrfTokenMiddleware);
+
+// CSRF token endpoint
+app.get('/api/csrf-token', getCsrfToken);
+
+// Apply CSRF protection to all routes (except public ones defined in middleware)
+app.use(csrfProtection);
 
 // Health check endpoint
 app.get('/health', (req, res) => {
@@ -108,7 +152,8 @@ app.use('/api/loans', loanRoutes);
 app.use('/api/calculator', calculatorRoutes);
 app.use('/api/users', userRoutes);
 app.use('/api', whatsappRoutes);
-app.use('/api/customers', customerRoutes);
+// Apply sensitive limiter to customer routes (contains sensitive data)
+app.use('/api/customers', sensitiveOperationsLimiter, customerRoutes);
 app.use('/api/tracking', trackingRoutes);
 
 // Simple form submission routes
