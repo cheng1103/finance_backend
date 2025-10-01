@@ -21,8 +21,50 @@ const trackingRoutes = require('./routes/tracking');
 
 const app = express();
 
+// Trust proxy (for Nginx)
+app.set('trust proxy', 1);
+
 // Connect to database
 connectDB();
+
+// CORS MUST be before other middleware to handle preflight requests
+const allowedOrigins = [
+  'https://eplatformcredit.com',
+  'https://www.eplatformcredit.com',
+  'https://admin.eplatformcredit.com',
+  process.env.FRONTEND_URL,
+  process.env.ADMIN_URL
+].filter(Boolean);
+
+// Add localhost only in development
+if (process.env.NODE_ENV === 'development') {
+  allowedOrigins.push('http://localhost:3000', 'http://localhost:3002');
+}
+
+const corsOptions = {
+  origin: function (origin, callback) {
+    // Allow requests with no origin (like mobile apps or curl)
+    if (!origin) return callback(null, true);
+
+    if (allowedOrigins.indexOf(origin) !== -1) {
+      callback(null, true);
+    } else {
+      console.log('CORS blocked origin:', origin);
+      callback(new Error('Not allowed by CORS'));
+    }
+  },
+  credentials: true,
+  optionsSuccessStatus: 200,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept'],
+  exposedHeaders: ['Content-Length', 'X-Request-Id'],
+  maxAge: 86400 // 24 hours
+};
+
+app.use(cors(corsOptions));
+
+// Handle preflight requests explicitly
+app.options('*', cors(corsOptions));
 
 // Security middleware
 app.use(helmet());
@@ -44,29 +86,6 @@ const limiter = rateLimit({
   }
 });
 app.use(limiter);
-
-// CORS configuration
-const allowedOrigins = [
-  'https://eplatformcredit.com',
-  'https://www.eplatformcredit.com',
-  'https://admin.eplatformcredit.com',
-  process.env.FRONTEND_URL,
-  process.env.ADMIN_URL
-].filter(Boolean);
-
-// Add localhost only in development
-if (process.env.NODE_ENV === 'development') {
-  allowedOrigins.push('http://localhost:3000', 'http://localhost:3002');
-}
-
-const corsOptions = {
-  origin: allowedOrigins,
-  credentials: true,
-  optionsSuccessStatus: 200,
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With']
-};
-app.use(cors(corsOptions));
 
 // Parse JSON request body
 app.use(express.json({ limit: '10mb' }));
