@@ -3,9 +3,26 @@ const router = express.Router();
 const Customer = require('../models/Customer');
 const VisitorTracking = require('../models/VisitorTracking');
 const WhatsAppTracking = require('../models/WhatsAppTracking');
+const { authenticateAdmin } = require('../middleware/auth');
 
-// POST /api/customers/applications - Create quick application
-router.post('/applications', async (req, res) => {
+// Rate limiting middleware for public endpoints
+const rateLimit = require('express-rate-limit');
+
+// Rate limiter for customer applications (stricter)
+const applicationLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 3, // Limit each IP to 3 requests per windowMs
+  message: {
+    success: false,
+    error: 'Too many applications from this IP, please try again later.',
+    retryAfter: '15 minutes'
+  },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
+// POST /api/customers/applications - Create quick application (Public with rate limit)
+router.post('/applications', applicationLimiter, async (req, res) => {
   try {
     const { name, email, phone, loanAmount, purpose } = req.body;
 
@@ -67,8 +84,8 @@ router.post('/applications', async (req, res) => {
   }
 });
 
-// POST /api/customers/inquiries - Create detailed inquiry
-router.post('/inquiries', async (req, res) => {
+// POST /api/customers/inquiries - Create detailed inquiry (Public with rate limit)
+router.post('/inquiries', applicationLimiter, async (req, res) => {
   try {
     const { name, email, phone, company, loanAmount, purpose, monthlyIncome } = req.body;
 
@@ -131,8 +148,8 @@ router.post('/inquiries', async (req, res) => {
   }
 });
 
-// GET /api/customers/stats - Get customer statistics (MUST BE BEFORE /:id route!)
-router.get('/stats', async (req, res) => {
+// GET /api/customers/stats - Get customer statistics (Admin only)
+router.get('/stats', authenticateAdmin, async (req, res) => {
   try {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
@@ -215,8 +232,8 @@ router.get('/stats', async (req, res) => {
   }
 });
 
-// GET /api/customers - Get all customers (Admin)
-router.get('/', async (req, res) => {
+// GET /api/customers - Get all customers (Admin only)
+router.get('/', authenticateAdmin, async (req, res) => {
   try {
     const { status, type, limit = 50, page = 1 } = req.query;
 
@@ -251,8 +268,8 @@ router.get('/', async (req, res) => {
   }
 });
 
-// GET /api/customers/:id - Get single customer by ID
-router.get('/:id', async (req, res) => {
+// GET /api/customers/:id - Get single customer by ID (Admin only)
+router.get('/:id', authenticateAdmin, async (req, res) => {
   try {
     const { id } = req.params;
 
@@ -280,8 +297,8 @@ router.get('/:id', async (req, res) => {
   }
 });
 
-// PUT /api/customers/:id - Update customer (Full update)
-router.put('/:id', async (req, res) => {
+// PUT /api/customers/:id - Update customer (Admin only)
+router.put('/:id', authenticateAdmin, async (req, res) => {
   try {
     const { id } = req.params;
     const updateData = req.body;
@@ -325,8 +342,8 @@ router.put('/:id', async (req, res) => {
   }
 });
 
-// DELETE /api/customers/:id - Delete customer
-router.delete('/:id', async (req, res) => {
+// DELETE /api/customers/:id - Delete customer (Admin only)
+router.delete('/:id', authenticateAdmin, async (req, res) => {
   try {
     const { id } = req.params;
 
@@ -360,8 +377,8 @@ router.delete('/:id', async (req, res) => {
   }
 });
 
-// PUT /api/customers/:id/status - Update customer WhatsApp status
-router.put('/:id/status', async (req, res) => {
+// PUT /api/customers/:id/status - Update customer WhatsApp status (Admin only)
+router.put('/:id/status', authenticateAdmin, async (req, res) => {
   try {
     const { id } = req.params;
     const { status, note } = req.body;
@@ -400,8 +417,8 @@ router.put('/:id/status', async (req, res) => {
   }
 });
 
-// POST /api/customers/:id/whatsapp-action - Record WhatsApp action
-router.post('/:id/whatsapp-action', async (req, res) => {
+// POST /api/customers/:id/whatsapp-action - Record WhatsApp action (Admin only)
+router.post('/:id/whatsapp-action', authenticateAdmin, async (req, res) => {
   try {
     const { id } = req.params;
     const { action, adminName, messageContent, fileType, fileName } = req.body;

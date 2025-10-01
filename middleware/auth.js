@@ -83,7 +83,88 @@ const optionalAuth = async (req, res, next) => {
   }
 };
 
+// Require admin role (for admin-only routes)
+const requireAdmin = (req, res, next) => {
+  // Check if user is authenticated
+  if (!req.user) {
+    return res.status(401).json({
+      status: 'error',
+      message: 'Authentication required',
+      code: 'AUTH_REQUIRED'
+    });
+  }
+
+  // Check if user has admin role
+  // For admin routes, check the decoded JWT directly (from admin login)
+  if (req.user.role === 'admin' || req.user.username === 'admin') {
+    return next();
+  }
+
+  // Otherwise, deny access
+  return res.status(403).json({
+    status: 'error',
+    message: 'Admin access required. This operation is restricted to administrators only.',
+    code: 'FORBIDDEN_ADMIN_ONLY'
+  });
+};
+
+// Simple admin token verification (for admin panel)
+const authenticateAdmin = (req, res, next) => {
+  try {
+    const authHeader = req.header('Authorization');
+
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      return res.status(401).json({
+        status: 'error',
+        message: 'Admin authentication required'
+      });
+    }
+
+    const token = authHeader.substring(7);
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+
+    // Check if it's an admin token
+    if (decoded.role !== 'admin') {
+      return res.status(403).json({
+        status: 'error',
+        message: 'Admin access required'
+      });
+    }
+
+    req.user = {
+      id: decoded.id,
+      username: decoded.username,
+      role: decoded.role
+    };
+
+    next();
+  } catch (error) {
+    console.error('Admin authentication error:', error.message);
+
+    if (error.name === 'JsonWebTokenError') {
+      return res.status(401).json({
+        status: 'error',
+        message: 'Invalid admin token'
+      });
+    }
+
+    if (error.name === 'TokenExpiredError') {
+      return res.status(401).json({
+        status: 'error',
+        message: 'Admin token has expired, please log in again'
+      });
+    }
+
+    return res.status(500).json({
+      status: 'error',
+      message: 'Admin authentication failed'
+    });
+  }
+};
+
 module.exports = {
   authenticate,
-  optionalAuth
+  optionalAuth,
+  requireAdmin,
+  authenticateAdmin
 };
