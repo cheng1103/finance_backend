@@ -131,6 +131,90 @@ router.post('/inquiries', async (req, res) => {
   }
 });
 
+// GET /api/customers/stats - Get customer statistics (MUST BE BEFORE /:id route!)
+router.get('/stats', async (req, res) => {
+  try {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    const thisMonth = new Date();
+    thisMonth.setDate(1);
+    thisMonth.setHours(0, 0, 0, 0);
+
+    // Basic statistics
+    const totalCustomers = await Customer.countDocuments();
+    const newCustomersToday = await Customer.countDocuments({
+      createdAt: { $gte: today }
+    });
+    const newCustomersThisMonth = await Customer.countDocuments({
+      createdAt: { $gte: thisMonth }
+    });
+
+    // WhatsApp statistics
+    const whatsappStats = await WhatsAppTracking.aggregate([
+      {
+        $match: {
+          timestamp: { $gte: today }
+        }
+      },
+      {
+        $group: {
+          _id: '$action',
+          count: { $sum: 1 }
+        }
+      }
+    ]);
+
+    const whatsappStatsMonth = await WhatsAppTracking.aggregate([
+      {
+        $match: {
+          timestamp: { $gte: thisMonth }
+        }
+      },
+      {
+        $group: {
+          _id: '$action',
+          count: { $sum: 1 }
+        }
+      }
+    ]);
+
+    // Visit statistics
+    const visitsToday = await VisitorTracking.countDocuments({
+      visitDate: { $gte: today }
+    });
+
+    const visitsThisMonth = await VisitorTracking.countDocuments({
+      visitDate: { $gte: thisMonth }
+    });
+
+    res.json({
+      success: true,
+      data: {
+        totalCustomers,
+        newCustomersToday,
+        newCustomersThisMonth,
+        visitsToday,
+        visitsThisMonth,
+        whatsappToday: whatsappStats.reduce((acc, stat) => acc + stat.count, 0),
+        whatsappThisMonth: whatsappStatsMonth.reduce((acc, stat) => acc + stat.count, 0),
+        whatsappBreakdown: {
+          today: whatsappStats,
+          thisMonth: whatsappStatsMonth
+        }
+      }
+    });
+
+  } catch (error) {
+    console.error('Get stats error:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to fetch statistics',
+      details: error.message
+    });
+  }
+});
+
 // GET /api/customers - Get all customers (Admin)
 router.get('/', async (req, res) => {
   try {
@@ -363,89 +447,6 @@ router.post('/:id/whatsapp-action', async (req, res) => {
     console.error('WhatsApp action error:', error);
     res.status(500).json({
       error: 'Failed to record WhatsApp action',
-      details: error.message
-    });
-  }
-});
-
-// GET /api/customers/stats - Get customer statistics
-router.get('/stats', async (req, res) => {
-  try {
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-
-    const thisMonth = new Date();
-    thisMonth.setDate(1);
-    thisMonth.setHours(0, 0, 0, 0);
-
-    // Basic statistics
-    const totalCustomers = await Customer.countDocuments();
-    const newCustomersToday = await Customer.countDocuments({
-      createdAt: { $gte: today }
-    });
-    const newCustomersThisMonth = await Customer.countDocuments({
-      createdAt: { $gte: thisMonth }
-    });
-
-    // WhatsApp statistics
-    const whatsappStats = await WhatsAppTracking.aggregate([
-      {
-        $match: {
-          timestamp: { $gte: today }
-        }
-      },
-      {
-        $group: {
-          _id: '$action',
-          count: { $sum: 1 }
-        }
-      }
-    ]);
-
-    const whatsappStatsMonth = await WhatsAppTracking.aggregate([
-      {
-        $match: {
-          timestamp: { $gte: thisMonth }
-        }
-      },
-      {
-        $group: {
-          _id: '$action',
-          count: { $sum: 1 }
-        }
-      }
-    ]);
-
-    // Visit statistics
-    const visitsToday = await VisitorTracking.countDocuments({
-      visitDate: { $gte: today }
-    });
-
-    const visitsThisMonth = await VisitorTracking.countDocuments({
-      visitDate: { $gte: thisMonth }
-    });
-
-    res.json({
-      success: true,
-      data: {
-        totalCustomers,
-        newCustomersToday,
-        newCustomersThisMonth,
-        visitsToday,
-        visitsThisMonth,
-        whatsappToday: whatsappStats.reduce((acc, stat) => acc + stat.count, 0),
-        whatsappThisMonth: whatsappStatsMonth.reduce((acc, stat) => acc + stat.count, 0),
-        whatsappBreakdown: {
-          today: whatsappStats,
-          thisMonth: whatsappStatsMonth
-        }
-      }
-    });
-
-  } catch (error) {
-    console.error('Get stats error:', error);
-    res.status(500).json({
-      error: 'Failed to fetch statistics',
       details: error.message
     });
   }
