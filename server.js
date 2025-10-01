@@ -11,6 +11,7 @@ const errorHandler = require('./middleware/errorHandler');
 
 // Import routes
 const authRoutes = require('./routes/auth');
+const adminRoutes = require('./routes/admin');
 const loanRoutes = require('./routes/loans');
 const calculatorRoutes = require('./routes/calculator');
 const userRoutes = require('./routes/users');
@@ -45,16 +46,21 @@ const limiter = rateLimit({
 app.use(limiter);
 
 // CORS configuration
+const allowedOrigins = [
+  'https://eplatformcredit.com',
+  'https://www.eplatformcredit.com',
+  'https://admin.eplatformcredit.com',
+  process.env.FRONTEND_URL,
+  process.env.ADMIN_URL
+].filter(Boolean);
+
+// Add localhost only in development
+if (process.env.NODE_ENV === 'development') {
+  allowedOrigins.push('http://localhost:3000', 'http://localhost:3002');
+}
+
 const corsOptions = {
-  origin: [
-    'https://eplatformcredit.com',
-    'https://www.eplatformcredit.com',  // 添加 www 版本
-    'https://admin.eplatformcredit.com',
-    process.env.FRONTEND_URL,
-    process.env.ADMIN_URL,
-    'http://localhost:3000',  // 开发环境
-    'http://localhost:3002'   // 管理后台开发环境
-  ].filter(Boolean), // 过滤掉 undefined 值
+  origin: allowedOrigins,
   credentials: true,
   optionsSuccessStatus: 200,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
@@ -78,6 +84,7 @@ app.get('/health', (req, res) => {
 
 // API routes
 app.use('/api/auth', authRoutes);
+app.use('/api/admin', adminRoutes);
 app.use('/api/loans', loanRoutes);
 app.use('/api/calculator', calculatorRoutes);
 app.use('/api/users', userRoutes);

@@ -4,18 +4,18 @@ const Customer = require('../models/Customer');
 const VisitorTracking = require('../models/VisitorTracking');
 const WhatsAppTracking = require('../models/WhatsAppTracking');
 
-// POST /api/customers/applications - 接收快速申请
+// POST /api/customers/applications - Create quick application
 router.post('/applications', async (req, res) => {
   try {
     const { name, email, phone, loanAmount, purpose } = req.body;
 
-    // 检查是否已存在客户 (邮箱或电话)
+    // Check if customer exists
     const existingCustomer = await Customer.findOne({
       $or: [{ email }, { phone }]
     });
 
     if (existingCustomer) {
-      // 更新现有客户信息
+      // Update existing customer
       existingCustomer.loanAmount = loanAmount;
       existingCustomer.purpose = purpose;
       existingCustomer.inquiryType = 'quick_application';
@@ -34,7 +34,7 @@ router.post('/applications', async (req, res) => {
         isExisting: true
       });
     } else {
-      // 创建新客户
+      // Create new customer
       const newCustomer = new Customer({
         name,
         email,
@@ -67,18 +67,16 @@ router.post('/applications', async (req, res) => {
   }
 });
 
-// POST /api/customers/inquiries - 接收详细咨询
+// POST /api/customers/inquiries - Create detailed inquiry
 router.post('/inquiries', async (req, res) => {
   try {
     const { name, email, phone, company, loanAmount, purpose, monthlyIncome } = req.body;
 
-    // 检查是否已存在客户
     const existingCustomer = await Customer.findOne({
       $or: [{ email }, { phone }]
     });
 
     if (existingCustomer) {
-      // 更新现有客户信息
       existingCustomer.loanAmount = loanAmount;
       existingCustomer.purpose = purpose;
       existingCustomer.company = company || '';
@@ -99,7 +97,6 @@ router.post('/inquiries', async (req, res) => {
         isExisting: true
       });
     } else {
-      // 创建新客户
       const newCustomer = new Customer({
         name,
         email,
@@ -134,7 +131,7 @@ router.post('/inquiries', async (req, res) => {
   }
 });
 
-// GET /api/customers - 获取所有客户 (Admin用)
+// GET /api/customers - Get all customers (Admin)
 router.get('/', async (req, res) => {
   try {
     const { status, type, limit = 50, page = 1 } = req.query;
@@ -170,7 +167,116 @@ router.get('/', async (req, res) => {
   }
 });
 
-// PUT /api/customers/:id/status - 更新客户WhatsApp状态
+// GET /api/customers/:id - Get single customer by ID
+router.get('/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    const customer = await Customer.findById(id);
+
+    if (!customer) {
+      return res.status(404).json({
+        success: false,
+        error: 'Customer not found'
+      });
+    }
+
+    res.json({
+      success: true,
+      data: customer
+    });
+
+  } catch (error) {
+    console.error('Get customer error:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to fetch customer',
+      details: error.message
+    });
+  }
+});
+
+// PUT /api/customers/:id - Update customer (Full update)
+router.put('/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const updateData = req.body;
+
+    const customer = await Customer.findById(id);
+    if (!customer) {
+      return res.status(404).json({
+        success: false,
+        error: 'Customer not found'
+      });
+    }
+
+    // Update fields
+    Object.keys(updateData).forEach(key => {
+      if (key !== '_id' && key !== 'createdAt' && updateData[key] !== undefined) {
+        customer[key] = updateData[key];
+      }
+    });
+
+    // Add update note
+    customer.followUpNotes.push({
+      note: 'Customer information updated by admin',
+      action: 'admin_update'
+    });
+
+    await customer.save();
+
+    res.json({
+      success: true,
+      message: 'Customer updated successfully',
+      data: customer
+    });
+
+  } catch (error) {
+    console.error('Update customer error:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to update customer',
+      details: error.message
+    });
+  }
+});
+
+// DELETE /api/customers/:id - Delete customer
+router.delete('/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    const customer = await Customer.findById(id);
+    if (!customer) {
+      return res.status(404).json({
+        success: false,
+        error: 'Customer not found'
+      });
+    }
+
+    // Delete related WhatsApp tracking records
+    await WhatsAppTracking.deleteMany({ customerId: id });
+
+    // Delete customer
+    await Customer.findByIdAndDelete(id);
+
+    res.json({
+      success: true,
+      message: 'Customer deleted successfully',
+      deletedId: id
+    });
+
+  } catch (error) {
+    console.error('Delete customer error:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to delete customer',
+      details: error.message
+    });
+  }
+});
+
+// PUT /api/customers/:id/status - Update customer WhatsApp status
 router.put('/:id/status', async (req, res) => {
   try {
     const { id } = req.params;
@@ -210,7 +316,7 @@ router.put('/:id/status', async (req, res) => {
   }
 });
 
-// POST /api/customers/:id/whatsapp-action - 记录WhatsApp动作
+// POST /api/customers/:id/whatsapp-action - Record WhatsApp action
 router.post('/:id/whatsapp-action', async (req, res) => {
   try {
     const { id } = req.params;
@@ -221,7 +327,7 @@ router.post('/:id/whatsapp-action', async (req, res) => {
       return res.status(404).json({ error: 'Customer not found' });
     }
 
-    // 记录到WhatsApp追踪
+    // Record WhatsApp tracking
     const whatsappTracking = new WhatsAppTracking({
       customerId: id,
       whatsappNumber: customer.whatsappNumber,
@@ -234,7 +340,7 @@ router.post('/:id/whatsapp-action', async (req, res) => {
     });
     await whatsappTracking.save();
 
-    // 更新客户记录
+    // Update customer record
     customer.whatsappInteractions.push({
       type: action,
       message: messageContent || `${action} by ${adminName}`
@@ -262,7 +368,7 @@ router.post('/:id/whatsapp-action', async (req, res) => {
   }
 });
 
-// GET /api/customers/stats - 获取客户统计数据
+// GET /api/customers/stats - Get customer statistics
 router.get('/stats', async (req, res) => {
   try {
     const today = new Date();
@@ -272,7 +378,7 @@ router.get('/stats', async (req, res) => {
     thisMonth.setDate(1);
     thisMonth.setHours(0, 0, 0, 0);
 
-    // 基本统计
+    // Basic statistics
     const totalCustomers = await Customer.countDocuments();
     const newCustomersToday = await Customer.countDocuments({
       createdAt: { $gte: today }
@@ -281,7 +387,7 @@ router.get('/stats', async (req, res) => {
       createdAt: { $gte: thisMonth }
     });
 
-    // WhatsApp统计
+    // WhatsApp statistics
     const whatsappStats = await WhatsAppTracking.aggregate([
       {
         $match: {
@@ -310,7 +416,7 @@ router.get('/stats', async (req, res) => {
       }
     ]);
 
-    // 访问统计
+    // Visit statistics
     const visitsToday = await VisitorTracking.countDocuments({
       visitDate: { $gte: today }
     });
