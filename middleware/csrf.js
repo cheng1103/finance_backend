@@ -73,6 +73,8 @@ function csrfProtection(req, res, next) {
 
   // Skip for certain routes (like public API endpoints)
   const publicRoutes = [
+    '/api/applications',              // Simple form applications
+    '/api/inquiries',                 // Simple form inquiries
     '/api/customers/applications',
     '/api/customers/inquiries',
     '/api/tracking/visit',
