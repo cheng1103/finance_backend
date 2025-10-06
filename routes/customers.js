@@ -27,58 +27,74 @@ router.post('/applications', applicationLimiter, async (req, res) => {
     const { name, email, phone, loanAmount, purpose } = req.body;
 
     // Check if customer exists
-    const existingCustomer = await Customer.findOne({
+    let customer = await Customer.findOne({
       $or: [{ email }, { phone }]
     });
 
-    if (existingCustomer) {
-      // Update existing customer
-      existingCustomer.loanAmount = loanAmount;
-      existingCustomer.purpose = purpose;
-      existingCustomer.inquiryType = 'quick_application';
-      existingCustomer.whatsappStatus = 'new';
-      existingCustomer.followUpNotes.push({
-        note: `New quick application submitted: RM ${loanAmount} for ${purpose}`,
-        action: 'new_application'
+    if (customer) {
+      // Add to quickApplications array
+      customer.quickApplications.push({
+        name,
+        email,
+        phone,
+        amount: parseFloat(loanAmount),
+        purpose,
+        status: 'pending',
+        submittedAt: new Date()
+      });
+      customer.whatsappStatus = 'new';
+      customer.followUpNotes.push({
+        note: `New quick application: RM ${loanAmount} for ${purpose}`,
+        action: 'quick_application'
       });
 
-      await existingCustomer.save();
+      await customer.save();
 
       res.json({
         success: true,
-        message: 'Application updated successfully',
-        customerId: existingCustomer._id,
+        message: 'Quick application submitted successfully',
+        customerId: customer._id,
         isExisting: true
       });
     } else {
-      // Create new customer
+      // Create new customer with quick application
       const newCustomer = new Customer({
         name,
         email,
         phone,
-        loanAmount: parseFloat(loanAmount),
-        purpose,
-        inquiryType: 'quick_application',
+        whatsappNumber: phone,
+        quickApplications: [{
+          name,
+          email,
+          phone,
+          amount: parseFloat(loanAmount),
+          purpose,
+          status: 'pending',
+          submittedAt: new Date()
+        }],
         whatsappStatus: 'new',
-        ipAddress: req.ip,
-        userAgent: req.get('User-Agent'),
-        referrer: req.get('Referer') || ''
+        metadata: {
+          source: 'quick_application',
+          ipAddress: req.ip,
+          userAgent: req.get('User-Agent'),
+          referrer: req.get('Referer') || ''
+        }
       });
 
       await newCustomer.save();
 
       res.json({
         success: true,
-        message: 'Application submitted successfully',
+        message: 'Quick application submitted successfully',
         customerId: newCustomer._id,
         isExisting: false
       });
     }
 
   } catch (error) {
-    console.error('Customer application error:', error);
+    console.error('Quick application error:', error);
     res.status(500).json({
-      error: 'Failed to submit application',
+      error: 'Failed to submit quick application',
       details: error.message
     });
   }
@@ -89,60 +105,80 @@ router.post('/inquiries', applicationLimiter, async (req, res) => {
   try {
     const { name, email, phone, company, loanAmount, purpose, monthlyIncome } = req.body;
 
-    const existingCustomer = await Customer.findOne({
+    let customer = await Customer.findOne({
       $or: [{ email }, { phone }]
     });
 
-    if (existingCustomer) {
-      existingCustomer.loanAmount = loanAmount;
-      existingCustomer.purpose = purpose;
-      existingCustomer.company = company || '';
-      existingCustomer.monthlyIncome = monthlyIncome || '';
-      existingCustomer.inquiryType = 'detailed_inquiry';
-      existingCustomer.whatsappStatus = 'new';
-      existingCustomer.followUpNotes.push({
-        note: `New detailed inquiry: RM ${loanAmount} for ${purpose}, Income: ${monthlyIncome}`,
-        action: 'new_inquiry'
+    if (customer) {
+      // Add to detailedInquiries array
+      customer.detailedInquiries.push({
+        name,
+        email,
+        phone,
+        company: company || '',
+        amount: parseFloat(loanAmount),
+        purpose,
+        monthlyIncome: monthlyIncome || '',
+        status: 'pending',
+        submittedAt: new Date()
+      });
+      customer.whatsappStatus = 'new';
+      customer.followUpNotes.push({
+        note: `New detailed inquiry: RM ${loanAmount} for ${purpose}`,
+        action: 'detailed_inquiry'
       });
 
-      await existingCustomer.save();
+      await customer.save();
 
       res.json({
         success: true,
-        message: 'Inquiry updated successfully',
-        customerId: existingCustomer._id,
+        message: 'Detailed inquiry submitted successfully',
+        customerId: customer._id,
         isExisting: true
       });
     } else {
+      // Create new customer with detailed inquiry
       const newCustomer = new Customer({
         name,
         email,
         phone,
-        loanAmount: parseFloat(loanAmount),
-        purpose,
+        whatsappNumber: phone,
         company: company || '',
         monthlyIncome: monthlyIncome || '',
-        inquiryType: 'detailed_inquiry',
+        detailedInquiries: [{
+          name,
+          email,
+          phone,
+          company: company || '',
+          amount: parseFloat(loanAmount),
+          purpose,
+          monthlyIncome: monthlyIncome || '',
+          status: 'pending',
+          submittedAt: new Date()
+        }],
         whatsappStatus: 'new',
-        ipAddress: req.ip,
-        userAgent: req.get('User-Agent'),
-        referrer: req.get('Referer') || ''
+        metadata: {
+          source: 'detailed_inquiry',
+          ipAddress: req.ip,
+          userAgent: req.get('User-Agent'),
+          referrer: req.get('Referer') || ''
+        }
       });
 
       await newCustomer.save();
 
       res.json({
         success: true,
-        message: 'Inquiry submitted successfully',
+        message: 'Detailed inquiry submitted successfully',
         customerId: newCustomer._id,
         isExisting: false
       });
     }
 
   } catch (error) {
-    console.error('Customer inquiry error:', error);
+    console.error('Detailed inquiry error:', error);
     res.status(500).json({
-      error: 'Failed to submit inquiry',
+      error: 'Failed to submit detailed inquiry',
       details: error.message
     });
   }
@@ -245,7 +281,7 @@ router.get('/', authenticateAdmin, async (req, res) => {
       .sort({ createdAt: -1 })
       .limit(parseInt(limit))
       .skip((page - 1) * limit)
-      .select('+loanApplications +inquiries'); // Include loanApplications and inquiries
+      .select('+loanApplications +quickApplications +detailedInquiries +inquiries'); // Include all form arrays
 
     const totalCustomers = await Customer.countDocuments(query);
 

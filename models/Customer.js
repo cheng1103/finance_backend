@@ -48,8 +48,15 @@ const customerSchema = new mongoose.Schema({
     default: ''
   },
 
-  // 贷款申请列表 (支持多个申请)
+  // 贷款申请列表 - Apply Now完整表单 (支持多个申请)
   loanApplications: [{
+    name: String,
+    email: String,
+    phone: String,
+    address: String,
+    company: String,
+    position: String,
+    monthlyIncome: String,
     amount: Number,
     purpose: String,
     status: {
@@ -64,7 +71,45 @@ const customerSchema = new mongoose.Schema({
     notes: String
   }],
 
-  // 联系咨询列表
+  // Quick Application快速申请列表
+  quickApplications: [{
+    name: String,
+    email: String,
+    phone: String,
+    amount: Number,
+    purpose: String,
+    status: {
+      type: String,
+      enum: ['pending', 'approved', 'rejected', 'cancelled'],
+      default: 'pending'
+    },
+    submittedAt: {
+      type: Date,
+      default: Date.now
+    }
+  }],
+
+  // Detailed Inquiry详细询价列表
+  detailedInquiries: [{
+    name: String,
+    email: String,
+    phone: String,
+    company: String,
+    amount: Number,
+    purpose: String,
+    monthlyIncome: String,
+    status: {
+      type: String,
+      enum: ['pending', 'approved', 'rejected', 'cancelled'],
+      default: 'pending'
+    },
+    submittedAt: {
+      type: Date,
+      default: Date.now
+    }
+  }],
+
+  // 联系咨询列表 - Contact表单
   inquiries: [{
     subject: String,
     message: String,
