@@ -8,10 +8,10 @@ const router = express.Router();
 
 // Admin credentials (should be stored in database or environment variables in production)
 const ADMIN_CREDENTIALS = {
-  username: process.env.ADMIN_USERNAME || 'Weilun777',
-  // This is bcrypt hash of 'Weilun777'
+  username: process.env.ADMIN_USERNAME || 'admin',
+  // This is bcrypt hash of 'AdminSecure2024!'
   // In production, read from environment variable or database
-  passwordHash: process.env.ADMIN_PASSWORD_HASH || '$2a$10$DmfrIMCG43UbHBv07QFMo.s7h3LRngsGVLP0bgj0UQUpFCWv7AO5a'
+  passwordHash: process.env.ADMIN_PASSWORD_HASH || '$2a$10$rQXvJZYlF.KgFc8qF7DqJ.xzVNqH8kJMmO2c9yKfLmEXMPLNqXG2e'
 };
 
 // Strict rate limiting for admin login
