@@ -235,7 +235,7 @@ router.get('/stats', authenticateAdmin, async (req, res) => {
 // GET /api/customers - Get all customers (Admin only)
 router.get('/', authenticateAdmin, async (req, res) => {
   try {
-    const { status, type, limit = 50, page = 1 } = req.query;
+    const { status, type, limit = 100, page = 1 } = req.query;
 
     const query = {};
     if (status) query.whatsappStatus = status;
@@ -244,7 +244,8 @@ router.get('/', authenticateAdmin, async (req, res) => {
     const customers = await Customer.find(query)
       .sort({ createdAt: -1 })
       .limit(parseInt(limit))
-      .skip((page - 1) * limit);
+      .skip((page - 1) * limit)
+      .select('+loanApplications +inquiries'); // Include loanApplications and inquiries
 
     const totalCustomers = await Customer.countDocuments(query);
 
