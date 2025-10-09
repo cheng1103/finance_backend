@@ -83,7 +83,19 @@ function csrfProtection(req, res, next) {
     '/api/admin/login'
   ];
 
+  // Skip for authenticated Admin routes (already protected by JWT)
+  const adminRoutes = [
+    '/api/customers',                 // Admin customer management
+    '/api/admin',                     // Admin routes
+    '/api/tracking/stats'             // Admin stats
+  ];
+
   if (publicRoutes.some(route => req.path.startsWith(route))) {
+    return next();
+  }
+
+  // Skip CSRF for Admin routes that have JWT authentication
+  if (adminRoutes.some(route => req.path.startsWith(route))) {
     return next();
   }
 
