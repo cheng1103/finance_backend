@@ -1,5 +1,6 @@
 const express = require('express');
 const router = express.Router();
+const { body, validationResult } = require('express-validator');
 const Customer = require('../models/Customer');
 const VisitorTracking = require('../models/VisitorTracking');
 const WhatsAppTracking = require('../models/WhatsAppTracking');
@@ -21,9 +22,59 @@ const applicationLimiter = rateLimit({
   legacyHeaders: false,
 });
 
+// Validation for Quick Application
+const quickApplicationValidation = [
+  body('name')
+    .trim()
+    .notEmpty()
+    .withMessage('Name is required')
+    .isLength({ min: 2, max: 100 })
+    .withMessage('Name must be between 2-100 characters')
+    .escape(),
+
+  body('email')
+    .trim()
+    .isEmail()
+    .normalizeEmail()
+    .withMessage('Please provide a valid email address'),
+
+  body('phone')
+    .trim()
+    .matches(/^\+60[0-9]{9,10}$/)
+    .withMessage('Please provide a valid Malaysian phone number starting with +60'),
+
+  body('loanAmount')
+    .isNumeric()
+    .isFloat({ min: 1000, max: 100000 })
+    .withMessage('Loan amount must be between RM 1,000 and RM 100,000'),
+
+  body('purpose')
+    .trim()
+    .notEmpty()
+    .withMessage('Loan purpose is required')
+    .isLength({ min: 2, max: 500 })
+    .withMessage('Purpose must be between 2-500 characters')
+    .escape(),
+
+  body('captchaVerified')
+    .isBoolean()
+    .custom((value) => value === true)
+    .withMessage('Captcha verification required')
+];
+
 // POST /api/customers/applications - Create quick application (Public with rate limit)
-router.post('/applications', applicationLimiter, async (req, res) => {
+router.post('/applications', applicationLimiter, quickApplicationValidation, async (req, res) => {
   try {
+    // Check validation errors
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(400).json({
+        success: false,
+        error: 'Validation failed',
+        details: errors.array()
+      });
+    }
+
     const { name, email, phone, loanAmount, purpose } = req.body;
 
     // Check if customer exists
@@ -100,9 +151,73 @@ router.post('/applications', applicationLimiter, async (req, res) => {
   }
 });
 
+// Validation for Detailed Inquiry
+const detailedInquiryValidation = [
+  body('name')
+    .trim()
+    .notEmpty()
+    .withMessage('Name is required')
+    .isLength({ min: 2, max: 100 })
+    .withMessage('Name must be between 2-100 characters')
+    .escape(),
+
+  body('email')
+    .trim()
+    .isEmail()
+    .normalizeEmail()
+    .withMessage('Please provide a valid email address'),
+
+  body('phone')
+    .trim()
+    .matches(/^\+60[0-9]{9,10}$/)
+    .withMessage('Please provide a valid Malaysian phone number starting with +60'),
+
+  body('company')
+    .optional()
+    .trim()
+    .isLength({ max: 200 })
+    .withMessage('Company name too long')
+    .escape(),
+
+  body('loanAmount')
+    .isNumeric()
+    .isFloat({ min: 1000, max: 100000 })
+    .withMessage('Loan amount must be between RM 1,000 and RM 100,000'),
+
+  body('purpose')
+    .trim()
+    .notEmpty()
+    .withMessage('Loan purpose is required')
+    .isLength({ min: 2, max: 500 })
+    .withMessage('Purpose must be between 2-500 characters')
+    .escape(),
+
+  body('monthlyIncome')
+    .optional()
+    .trim()
+    .isLength({ max: 100 })
+    .escape(),
+
+  body('captchaVerified')
+    .optional()
+    .isBoolean()
+    .custom((value) => value === true)
+    .withMessage('Captcha verification required')
+];
+
 // POST /api/customers/inquiries - Create detailed inquiry (Public with rate limit)
-router.post('/inquiries', applicationLimiter, async (req, res) => {
+router.post('/inquiries', applicationLimiter, detailedInquiryValidation, async (req, res) => {
   try {
+    // Check validation errors
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(400).json({
+        success: false,
+        error: 'Validation failed',
+        details: errors.array()
+      });
+    }
+
     const { name, email, phone, company, loanAmount, purpose, monthlyIncome } = req.body;
 
     let customer = await Customer.findOne({
