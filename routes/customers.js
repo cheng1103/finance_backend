@@ -5,6 +5,7 @@ const Customer = require('../models/Customer');
 const VisitorTracking = require('../models/VisitorTracking');
 const WhatsAppTracking = require('../models/WhatsAppTracking');
 const { authenticateAdmin } = require('../middleware/auth');
+const { permissions } = require('../middleware/permissions');
 
 // Rate limiting middleware for public endpoints
 const rateLimit = require('express-rate-limit');
@@ -300,7 +301,7 @@ router.post('/inquiries', applicationLimiter, detailedInquiryValidation, async (
 });
 
 // GET /api/customers/stats - Get customer statistics (Admin only)
-router.get('/stats', authenticateAdmin, async (req, res) => {
+router.get('/stats', permissions.canView, async (req, res) => {
   try {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
@@ -384,7 +385,7 @@ router.get('/stats', authenticateAdmin, async (req, res) => {
 });
 
 // GET /api/customers - Get all customers (Admin only)
-router.get('/', authenticateAdmin, async (req, res) => {
+router.get('/', permissions.canView, async (req, res) => {
   try {
     const { status, type, limit = 100, page = 1 } = req.query;
 
@@ -421,7 +422,7 @@ router.get('/', authenticateAdmin, async (req, res) => {
 });
 
 // GET /api/customers/:id - Get single customer by ID (Admin only)
-router.get('/:id', authenticateAdmin, async (req, res) => {
+router.get('/:id', permissions.canView, async (req, res) => {
   try {
     const { id } = req.params;
 
@@ -450,7 +451,7 @@ router.get('/:id', authenticateAdmin, async (req, res) => {
 });
 
 // PUT /api/customers/:id - Update customer (Admin only)
-router.put('/:id', authenticateAdmin, async (req, res) => {
+router.put('/:id', permissions.canEdit, async (req, res) => {
   try {
     const { id } = req.params;
     const updateData = req.body;
@@ -495,7 +496,7 @@ router.put('/:id', authenticateAdmin, async (req, res) => {
 });
 
 // DELETE /api/customers/:id - Delete customer (Admin only)
-router.delete('/:id', authenticateAdmin, async (req, res) => {
+router.delete('/:id', permissions.canDelete, async (req, res) => {
   try {
     const { id } = req.params;
 
@@ -530,7 +531,7 @@ router.delete('/:id', authenticateAdmin, async (req, res) => {
 });
 
 // PUT /api/customers/:id/status - Update customer WhatsApp status (Admin only)
-router.put('/:id/status', authenticateAdmin, async (req, res) => {
+router.put('/:id/status', permissions.canEdit, async (req, res) => {
   try {
     const { id } = req.params;
     const { status, note } = req.body;
@@ -570,7 +571,7 @@ router.put('/:id/status', authenticateAdmin, async (req, res) => {
 });
 
 // POST /api/customers/:id/whatsapp-action - Record WhatsApp action (Admin only)
-router.post('/:id/whatsapp-action', authenticateAdmin, async (req, res) => {
+router.post('/:id/whatsapp-action', permissions.canView, async (req, res) => {
   try {
     const { id } = req.params;
     const { action, adminName, messageContent, fileType, fileName } = req.body;

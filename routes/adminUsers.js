@@ -2,6 +2,7 @@ const express = require('express');
 const { body, validationResult } = require('express-validator');
 const AdminUser = require('../models/AdminUser');
 const { authenticateAdmin } = require('../middleware/auth');
+const { permissions } = require('../middleware/permissions');
 const rateLimit = require('express-rate-limit');
 
 const router = express.Router();
@@ -45,7 +46,7 @@ const createUserValidation = [
 // @route   GET /api/admin/users
 // @desc    Get all admin users (Superadmin only)
 // @access  Private
-router.get('/', authenticateAdmin, async (req, res) => {
+router.get('/', permissions.canCreateUsers, async (req, res) => {
   try {
     // Check if user has permission to view users
     if (req.user.role !== 'superadmin' && !req.user.permissions?.canCreateUsers) {
@@ -89,7 +90,7 @@ router.get('/', authenticateAdmin, async (req, res) => {
 // @route   POST /api/admin/users
 // @desc    Create new admin user (Superadmin only)
 // @access  Private
-router.post('/', createUserLimiter, authenticateAdmin, createUserValidation, async (req, res) => {
+router.post('/', createUserLimiter, permissions.canCreateUsers, createUserValidation, async (req, res) => {
   try {
     console.log('Create user request received:', {
       userRole: req.user.role,
@@ -187,7 +188,7 @@ router.post('/', createUserLimiter, authenticateAdmin, createUserValidation, asy
 // @route   PUT /api/admin/users/:id
 // @desc    Update admin user (Superadmin only)
 // @access  Private
-router.put('/:id', authenticateAdmin, async (req, res) => {
+router.put('/:id', permissions.canCreateUsers, async (req, res) => {
   try {
     // Check if user has permission to edit users
     if (req.user.role !== 'superadmin' && !req.user.permissions?.canCreateUsers) {
@@ -258,7 +259,7 @@ router.put('/:id', authenticateAdmin, async (req, res) => {
 // @route   DELETE /api/admin/users/:id
 // @desc    Delete admin user (Superadmin only)
 // @access  Private
-router.delete('/:id', authenticateAdmin, async (req, res) => {
+router.delete('/:id', permissions.canCreateUsers, async (req, res) => {
   try {
     // Check if user has permission to delete users
     if (req.user.role !== 'superadmin' && !req.user.permissions?.canCreateUsers) {
@@ -316,7 +317,7 @@ router.delete('/:id', authenticateAdmin, async (req, res) => {
 // @route   PUT /api/admin/users/:id/password
 // @desc    Reset user password (Superadmin only)
 // @access  Private
-router.put('/:id/password', authenticateAdmin, [
+router.put('/:id/password', permissions.canCreateUsers, [
   body('newPassword')
     .isLength({ min: 6 })
     .withMessage('Password must be at least 6 characters long')
