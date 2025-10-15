@@ -91,8 +91,15 @@ router.get('/', authenticateAdmin, async (req, res) => {
 // @access  Private
 router.post('/', createUserLimiter, authenticateAdmin, createUserValidation, async (req, res) => {
   try {
+    console.log('Create user request received:', {
+      userRole: req.user.role,
+      userPermissions: req.user.permissions,
+      requestBody: req.body
+    });
+
     // Check if user has permission to create users
     if (req.user.role !== 'superadmin' && !req.user.permissions?.canCreateUsers) {
+      console.log('Permission denied for user:', req.user.role);
       return res.status(403).json({
         status: 'error',
         message: 'Insufficient permissions to create users'
