@@ -7,6 +7,25 @@ const rateLimit = require('express-rate-limit');
 
 const router = express.Router();
 
+// @route   GET /api/admin/users/test-permission
+// @desc    Test permission system
+// @access  Private (All authenticated users)
+router.get('/test-permission', authenticateAdmin, async (req, res) => {
+  try {
+    res.json({
+      status: 'success',
+      data: {
+        user: req.user,
+        message: 'Permission test successful',
+        timestamp: new Date().toISOString()
+      }
+    });
+  } catch (error) {
+    console.error('Permission test error:', error);
+    res.status(500).json({ status: 'error', message: 'Permission test failed' });
+  }
+});
+
 // Rate limiting for user creation
 const createUserLimiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
