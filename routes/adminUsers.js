@@ -134,13 +134,16 @@ router.post('/', createUserLimiter, authenticateAdmin, createUserValidation, asy
     }
 
     // Create new admin user
+    // Handle legacy admin case - set createdBy to null for legacy admin
+    const createdBy = req.user.userId === 'legacy-admin' ? null : req.user.userId;
+    
     const newUser = new AdminUser({
       username,
       email,
       password,
       fullName,
       role,
-      createdBy: req.user.userId
+      createdBy: createdBy
     });
 
     await newUser.save();
