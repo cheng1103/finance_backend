@@ -124,6 +124,27 @@ const authenticateAdmin = async (req, res, next) => {
     const token = authHeader.substring(7);
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
 
+    // Check if it's a legacy admin token (from old system)
+    if (decoded.id === 'legacy-admin' || decoded.username === 'admin') {
+      // Legacy admin authentication
+      req.user = {
+        userId: 'legacy-admin',
+        id: 'legacy-admin',
+        username: 'admin',
+        role: 'superadmin',
+        permissions: {
+          canView: true,
+          canEdit: true,
+          canDelete: true,
+          canCreateUsers: true,
+          canManageSettings: true
+        },
+        fullName: 'System Administrator',
+        email: 'admin@system.local'
+      };
+      return next();
+    }
+
     // Check if it's an admin token
     if (!['superadmin', 'admin', 'viewer'].includes(decoded.role)) {
       return res.status(403).json({
