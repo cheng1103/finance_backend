@@ -1,5 +1,6 @@
 const jwt = require('jsonwebtoken');
 const User = require('../models/User');
+const AdminUser = require('../models/AdminUser');
 
 // Verify JWT token
 const authenticate = async (req, res, next) => {
@@ -108,8 +109,8 @@ const requireAdmin = (req, res, next) => {
   });
 };
 
-// Simple admin token verification (for admin panel)
-const authenticateAdmin = (req, res, next) => {
+// Enhanced admin authentication for AdminUser model
+const authenticateAdmin = async (req, res, next) => {
   try {
     const authHeader = req.header('Authorization');
 
@@ -124,17 +125,47 @@ const authenticateAdmin = (req, res, next) => {
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
 
     // Check if it's an admin token
-    if (decoded.role !== 'admin') {
+    if (!['superadmin', 'admin', 'viewer'].includes(decoded.role)) {
       return res.status(403).json({
         status: 'error',
         message: 'Admin access required'
       });
     }
 
+    // Find admin user in database
+    const adminUser = await AdminUser.findById(decoded.userId).select('-password');
+    
+    if (!adminUser) {
+      return res.status(401).json({
+        status: 'error',
+        message: 'Admin user not found'
+      });
+    }
+
+    // Check if admin user is active
+    if (!adminUser.isActive) {
+      return res.status(401).json({
+        status: 'error',
+        message: 'Admin account is disabled'
+      });
+    }
+
+    // Check if account is locked
+    if (adminUser.isLocked) {
+      return res.status(401).json({
+        status: 'error',
+        message: 'Admin account is temporarily locked due to multiple failed login attempts'
+      });
+    }
+
     req.user = {
-      id: decoded.id,
-      username: decoded.username,
-      role: decoded.role
+      userId: adminUser._id,
+      id: adminUser._id, // For backward compatibility
+      username: adminUser.username,
+      role: adminUser.role,
+      permissions: adminUser.permissions,
+      fullName: adminUser.fullName,
+      email: adminUser.email
     };
 
     next();

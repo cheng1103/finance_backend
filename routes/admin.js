@@ -3,6 +3,7 @@ const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const { body, validationResult } = require('express-validator');
 const rateLimit = require('express-rate-limit');
+const AdminUser = require('../models/AdminUser');
 
 const router = express.Router();
 
@@ -38,7 +39,7 @@ const adminLoginValidation = [
 ];
 
 // @route   POST /api/admin/login
-// @desc    Admin login
+// @desc    Admin login (supports both legacy and new AdminUser)
 // @access  Public
 router.post('/login', adminLoginLimiter, adminLoginValidation, async (req, res) => {
   try {
@@ -54,45 +55,134 @@ router.post('/login', adminLoginLimiter, adminLoginValidation, async (req, res) 
 
     const { username, password } = req.body;
 
-    // Check username
-    if (username !== ADMIN_CREDENTIALS.username) {
-      return res.status(401).json({
-        status: 'error',
-        message: 'Invalid username or password'
-      });
-    }
+    // First, try to find user in AdminUser collection
+    const adminUser = await AdminUser.findOne({ 
+      $or: [{ username }, { email: username }] 
+    }).select('+password');
 
-    // Verify password
-    const isPasswordValid = await bcrypt.compare(password, ADMIN_CREDENTIALS.passwordHash);
-    if (!isPasswordValid) {
-      return res.status(401).json({
-        status: 'error',
-        message: 'Invalid username or password'
-      });
-    }
-
-    // Generate JWT token
-    const token = jwt.sign(
-      {
-        id: 'admin',
-        username: username,
-        role: 'admin'
-      },
-      process.env.JWT_SECRET,
-      { expiresIn: process.env.JWT_EXPIRES_IN || '7d' }
-    );
-
-    res.json({
-      status: 'success',
-      message: 'Login successful',
-      data: {
-        token,
-        user: {
-          username: username,
-          role: 'admin'
-        }
+    if (adminUser) {
+      // New AdminUser login
+      
+      // Check if account is locked
+      if (adminUser.isLocked) {
+        return res.status(401).json({
+          status: 'error',
+          message: 'Account is temporarily locked due to multiple failed login attempts. Please try again later.'
+        });
       }
-    });
+
+      // Check if account is active
+      if (!adminUser.isActive) {
+        return res.status(401).json({
+          status: 'error',
+          message: 'Account is disabled'
+        });
+      }
+
+      // Verify password
+      const isPasswordValid = await adminUser.comparePassword(password);
+      if (!isPasswordValid) {
+        // Increment login attempts
+        await adminUser.incLoginAttempts();
+        return res.status(401).json({
+          status: 'error',
+          message: 'Invalid username or password'
+        });
+      }
+
+      // Reset login attempts and update last login
+      await adminUser.updateLastLogin();
+
+      // Generate JWT token
+      const token = jwt.sign(
+        {
+          userId: adminUser._id,
+          username: adminUser.username,
+          role: adminUser.role,
+          permissions: adminUser.permissions
+        },
+        process.env.JWT_SECRET,
+        { expiresIn: process.env.JWT_EXPIRES_IN || '7d' }
+      );
+
+      res.json({
+        status: 'success',
+        message: 'Login successful',
+        data: {
+          token,
+          user: {
+            id: adminUser._id,
+            username: adminUser.username,
+            email: adminUser.email,
+            fullName: adminUser.fullName,
+            role: adminUser.role,
+            permissions: adminUser.permissions,
+            lastLogin: adminUser.lastLogin
+          }
+        }
+      });
+
+    } else {
+      // Legacy admin login (fallback)
+      
+      // Check username
+      if (username !== ADMIN_CREDENTIALS.username) {
+        return res.status(401).json({
+          status: 'error',
+          message: 'Invalid username or password'
+        });
+      }
+
+      // Verify password
+      const isPasswordValid = await bcrypt.compare(password, ADMIN_CREDENTIALS.passwordHash);
+      if (!isPasswordValid) {
+        return res.status(401).json({
+          status: 'error',
+          message: 'Invalid username or password'
+        });
+      }
+
+      // Generate JWT token for legacy admin
+      const token = jwt.sign(
+        {
+          userId: 'legacy-admin',
+          id: 'legacy-admin', // For backward compatibility
+          username: username,
+          role: 'superadmin',
+          permissions: {
+            canView: true,
+            canEdit: true,
+            canDelete: true,
+            canCreateUsers: true,
+            canManageSettings: true
+          }
+        },
+        process.env.JWT_SECRET,
+        { expiresIn: process.env.JWT_EXPIRES_IN || '7d' }
+      );
+
+      res.json({
+        status: 'success',
+        message: 'Login successful',
+        data: {
+          token,
+          user: {
+            id: 'legacy-admin',
+            username: username,
+            email: 'admin@eplatformcredit.com',
+            fullName: 'System Administrator',
+            role: 'superadmin',
+            permissions: {
+              canView: true,
+              canEdit: true,
+              canDelete: true,
+              canCreateUsers: true,
+              canManageSettings: true
+            }
+          }
+        }
+      });
+    }
 
   } catch (error) {
     console.error('Admin login error:', error);
