@@ -80,7 +80,7 @@ if (process.env.NODE_ENV === 'development') {
 // Rate limiting - Different limits for different types of requests
 const generalLimiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 100, // limit each IP to 100 requests per windowMs
+  max: 500, // limit each IP to 500 requests per windowMs (增加到500)
   message: {
     error: 'Too many requests, please try again later'
   },
@@ -91,7 +91,7 @@ const generalLimiter = rateLimit({
 // Strict limiter for write operations (POST/PUT/DELETE)
 const writeLimiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 30, // limit each IP to 30 write operations per 15 minutes
+  max: 100, // limit each IP to 100 write operations per 15 minutes (增加到100)
   message: {
     error: 'Too many write operations, please slow down'
   },

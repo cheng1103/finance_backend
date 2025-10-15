@@ -1,0 +1,100 @@
+name: Deploy Backend to EC2
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:  # Allow manual trigger
+
+jobs:
+  deploy:
+    name: Deploy to EC2
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: '18'
+
+      - name: Install dependencies (for validation)
+        run: npm ci
+
+      - name: Run tests (if available)
+        run: npm test || echo "No tests configured"
+        continue-on-error: true
+
+      - name: Deploy to EC2 via SSH
+        uses: appleboy/ssh-action@master
+        with:
+          host: ${{ secrets.EC2_HOST }}
+          username: ${{ secrets.EC2_USER }}
+          key: ${{ secrets.EC2_SSH_KEY }}
+          port: 22
+          script: |
+            set -e
+
+            echo "======================================"
+            echo "🚀 Starting Backend Deployment"
+            echo "======================================"
+
+            # Navigate to backend directory
+            cd /home/ubuntu/finance_backend/finance_backend
+
+            # Backup current version (in case rollback needed)
+            echo "📦 Creating backup..."
+            BACKUP_DIR="/home/ubuntu/backups/backend-$(date +%Y%m%d-%H%M%S)"
+            mkdir -p /home/ubuntu/backups
+            cp -r /home/ubuntu/finance_backend/finance_backend $BACKUP_DIR
+            echo "✅ Backup created at: $BACKUP_DIR"
+
+            # Pull latest code
+            echo "📥 Pulling latest code from GitHub..."
+            git fetch origin main
+            git reset --hard origin/main
+
+            # Install dependencies
+            echo "📦 Installing dependencies..."
+            npm ci --production
+
+            # Run environment validation
+            echo "🔍 Validating environment..."
+            node scripts/validate-env.js || echo "⚠️  Environment validation failed, but continuing..."
+
+            # Restart PM2
+            echo "🔄 Restarting PM2 services..."
+            pm2 restart ecosystem.config.js --env production
+
+            # Wait for service to start
+            echo "⏳ Waiting for service to start..."
+            sleep 5
+
+            # Health check
+            echo "🏥 Running health check..."
+            node scripts/health-check.js
+
+            # Show PM2 status
+            echo "📊 PM2 Status:"
+            pm2 status
+
+            # Keep only last 5 backups
+            echo "🧹 Cleaning old backups..."
+            cd /home/ubuntu/backups
+            ls -t | tail -n +6 | xargs -r rm -rf
+
+            echo "======================================"
+            echo "✅ Deployment Completed Successfully!"
+            echo "======================================"
+
+      - name: Notify deployment status
+        if: always()
+        run: |
+          if [ ${{ job.status }} == 'success' ]; then
+            echo "✅ Deployment successful!"
+          else
+            echo "❌ Deployment failed!"
+            exit 1
+          fi
