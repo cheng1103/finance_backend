@@ -15,10 +15,10 @@ const ADMIN_CREDENTIALS = {
   passwordHash: process.env.ADMIN_PASSWORD_HASH || '$2a$10$rQXvJZYlF.KgFc8qF7DqJ.xzVNqH8kJMmO2c9yKfLmEXMPLNqXG2e'
 };
 
-// Strict rate limiting for admin login
+// Relaxed rate limiting for admin login
 const adminLoginLimiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 3, // Max 3 login attempts per IP per 15 minutes
+  max: 20, // Increased to 20 login attempts per IP per 15 minutes (was 3)
   message: {
     status: 'error',
     message: 'Too many login attempts, please try again after 15 minutes'

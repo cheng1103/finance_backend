@@ -78,10 +78,10 @@ if (process.env.NODE_ENV === 'development') {
   app.use(morgan('dev'));
 }
 
-// Rate limiting - Different limits for different types of requests
+// Rate limiting - Relaxed limits for better admin dashboard experience
 const generalLimiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 500, // limit each IP to 500 requests per windowMs (增加到500)
+  max: 1000, // Increased to 1000 requests per windowMs (was 500)
   message: {
     error: 'Too many requests, please try again later'
   },
@@ -89,10 +89,10 @@ const generalLimiter = rateLimit({
   legacyHeaders: false,
 });
 
-// Strict limiter for write operations (POST/PUT/DELETE)
+// Relaxed limiter for write operations (POST/PUT/DELETE)
 const writeLimiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 100, // limit each IP to 100 write operations per 15 minutes (增加到100)
+  max: 500, // Increased to 500 write operations per 15 minutes (was 100)
   message: {
     error: 'Too many write operations, please slow down'
   },
@@ -101,10 +101,10 @@ const writeLimiter = rateLimit({
   skip: (req) => req.method === 'GET' || req.method === 'HEAD' || req.method === 'OPTIONS'
 });
 
-// Very strict limiter for sensitive operations
+// Relaxed limiter for sensitive operations
 const sensitiveOperationsLimiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 100, // Increased to 100 attempts per 15 minutes (was 10)
+  max: 300, // Increased to 300 attempts per 15 minutes (was 100)
   message: {
     error: 'Too many attempts on sensitive operation, please try again later'
   },
