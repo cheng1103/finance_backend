@@ -98,8 +98,11 @@ router.post('/', createUserLimiter, authenticateAdmin, createUserValidation, asy
     });
 
     // Check if user has permission to create users
-    if (req.user.role !== 'superadmin' && !req.user.permissions?.canCreateUsers) {
-      console.log('Permission denied for user:', req.user.role);
+    // Allow legacy admin (id: 'legacy-admin') to create users
+    if (req.user.userId === 'legacy-admin' || req.user.role === 'superadmin' || req.user.permissions?.canCreateUsers) {
+      console.log('Permission granted for user:', req.user.role, req.user.userId);
+    } else {
+      console.log('Permission denied for user:', req.user.role, req.user.userId);
       return res.status(403).json({
         status: 'error',
         message: 'Insufficient permissions to create users'
@@ -165,9 +168,15 @@ router.post('/', createUserLimiter, authenticateAdmin, createUserValidation, asy
 
   } catch (error) {
     console.error('Create admin user error:', error);
+    console.error('Error details:', {
+      message: error.message,
+      stack: error.stack,
+      name: error.name
+    });
     res.status(500).json({
       status: 'error',
-      message: 'Failed to create admin user'
+      message: 'Failed to create admin user',
+      details: process.env.NODE_ENV === 'development' ? error.message : undefined
     });
   }
 });
