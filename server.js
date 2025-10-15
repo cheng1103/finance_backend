@@ -104,7 +104,7 @@ const writeLimiter = rateLimit({
 // Very strict limiter for sensitive operations
 const sensitiveOperationsLimiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 10, // Only 10 attempts per 15 minutes
+  max: 100, // Increased to 100 attempts per 15 minutes (was 10)
   message: {
     error: 'Too many attempts on sensitive operation, please try again later'
   },
