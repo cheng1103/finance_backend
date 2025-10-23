@@ -19,7 +19,7 @@ const checkPermission = (requiredPermission) => {
 
       return res.status(403).json({
         status: 'error',
-        message: Insufficient permissions. Required: ,
+        message: `Insufficient permissions. Required: ${requiredPermission}`,
         code: 'PERMISSION_DENIED'
       });
     });
@@ -45,7 +45,7 @@ const requireRole = (allowedRoles) => {
 
       return res.status(403).json({
         status: 'error',
-        message: Access denied. Required roles: ,
+        message: `Access denied. Required roles: ${allowedRoles.join(', ')}`,
         code: 'ROLE_DENIED'
       });
     });
