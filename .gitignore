@@ -36,3 +36,4 @@ pids/
 # Build files
 dist/
 build/
+.vercel
