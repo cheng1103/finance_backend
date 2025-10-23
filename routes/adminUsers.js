@@ -139,11 +139,6 @@ router.get('/', permissions.canCreateUsers, async (req, res) => {
 // @access  Private
 router.post('/', createUserLimiter, permissions.canCreateUsers, createUserValidation, async (req, res) => {
   try {
-      userRole: req.user.role,
-      userPermissions: req.user.permissions,
-      requestBody: req.body
-    });
-
     // Check if user has permission to create users
     // Allow legacy admin (id: 'legacy-admin') to create users
     if (req.user.userId === 'legacy-admin' || req.user.role === 'superadmin' || req.user.permissions?.canCreateUsers) {
