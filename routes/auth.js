@@ -257,7 +257,6 @@ router.post('/forgot-password', [
     if (user) {
       const resetToken = user.generatePasswordResetToken();
       await user.save({ validateBeforeSave: false });
-      });
     }
   } catch (error) {
     console.error('[Auth] Forgot password error:', error);
