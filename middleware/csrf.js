@@ -1,54 +1,70 @@
 const crypto = require('crypto');
 
-// Simple CSRF protection middleware
-// Generates and validates CSRF tokens
+// Stateless CSRF protection middleware using JWT-style signed tokens
+// This approach works perfectly with serverless/edge functions (Vercel, AWS Lambda)
+// No need for Redis or database storage
 
-// Store tokens in memory (in production, use Redis)
-const tokenStore = new Map();
+const CSRF_SECRET = process.env.CSRF_SECRET || 'your-csrf-secret-key-change-this';
 
-// Clean up expired tokens every hour
-setInterval(() => {
-  const now = Date.now();
-  for (const [token, data] of tokenStore.entries()) {
-    if (now - data.createdAt > 3600000) { // 1 hour
-      tokenStore.delete(token);
-    }
-  }
-}, 3600000);
-
-// Generate CSRF token
+// Generate stateless CSRF token
+// Format: base64(sessionId + '.' + timestamp + '.' + signature)
 function generateToken(sessionId) {
-  const token = crypto.randomBytes(32).toString('hex');
-  tokenStore.set(token, {
-    sessionId,
-    createdAt: Date.now()
-  });
+  const timestamp = Date.now().toString();
+  const payload = `${sessionId}.${timestamp}`;
+
+  // Create HMAC signature
+  const signature = crypto
+    .createHmac('sha256', CSRF_SECRET)
+    .update(payload)
+    .digest('hex');
+
+  const token = Buffer.from(`${payload}.${signature}`).toString('base64');
   return token;
 }
 
-// Validate CSRF token
+// Validate stateless CSRF token
 function validateToken(token, sessionId) {
   if (!token || !sessionId) {
     return false;
   }
 
-  const data = tokenStore.get(token);
-  if (!data) {
+  try {
+    // Decode token
+    const decoded = Buffer.from(token, 'base64').toString('utf8');
+    const parts = decoded.split('.');
+
+    if (parts.length !== 3) {
+      return false;
+    }
+
+    const [tokenSessionId, timestamp, signature] = parts;
+
+    // Verify session ID matches
+    if (tokenSessionId !== sessionId) {
+      return false;
+    }
+
+    // Verify signature
+    const payload = `${tokenSessionId}.${timestamp}`;
+    const expectedSignature = crypto
+      .createHmac('sha256', CSRF_SECRET)
+      .update(payload)
+      .digest('hex');
+
+    if (signature !== expectedSignature) {
+      return false;
+    }
+
+    // Check expiration (1 hour)
+    const age = Date.now() - parseInt(timestamp);
+    if (age > 3600000) {
+      return false;
+    }
+
+    return true;
+  } catch (error) {
     return false;
   }
-
-  // Check if token matches session and not expired
-  if (data.sessionId !== sessionId) {
-    return false;
-  }
-
-  const age = Date.now() - data.createdAt;
-  if (age > 3600000) { // 1 hour expiry
-    tokenStore.delete(token);
-    return false;
-  }
-
-  return true;
 }
 
 // Middleware to provide CSRF token
@@ -111,9 +127,7 @@ function csrfProtection(req, res, next) {
     });
   }
 
-  // Remove token after successful validation (one-time use)
-  tokenStore.delete(token);
-
+  // Token validated successfully - stateless tokens don't need removal
   next();
 }
 

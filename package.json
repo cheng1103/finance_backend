@@ -1,6 +1,6 @@
 {
   "name": "finance-backend-api",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "Finance platform backend API service",
   "main": "server.js",
   "scripts": {
@@ -9,7 +9,11 @@
     "test": "jest",
     "validate-env": "node scripts/validate-env.js",
     "health-check": "node scripts/health-check.js",
-    "deploy:check": "npm run validate-env && npm run health-check"
+    "optimize-indexes": "node scripts/optimize-indexes.js",
+    "backup": "node scripts/backup-database.js",
+    "setup-backup-cron": "bash scripts/setup-backup-cron.sh",
+    "deploy:check": "npm run validate-env && npm run health-check",
+    "deploy:optimize": "npm run optimize-indexes"
   },
   "keywords": [
     "finance",
@@ -32,7 +36,9 @@
     "helmet": "^7.1.0",
     "jsonwebtoken": "^9.0.2",
     "mongoose": "^8.0.3",
-    "morgan": "^1.10.0"
+    "morgan": "^1.10.0",
+    "winston": "^3.18.3",
+    "winston-daily-rotate-file": "^5.0.0"
   },
   "devDependencies": {
     "jest": "^29.7.0",

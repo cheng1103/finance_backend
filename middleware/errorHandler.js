@@ -1,12 +1,8 @@
+const logger = require('../utils/logger');
+
 const errorHandler = (err, req, res, next) => {
-  console.error('Error details:', {
-    message: err.message,
-    stack: process.env.NODE_ENV === 'development' ? err.stack : undefined,
-    url: req.originalUrl,
-    method: req.method,
-    ip: req.ip,
-    timestamp: new Date().toISOString()
-  });
+  // Log error with structured logging
+  logger.logError(err, req);
 
   let statusCode = err.statusCode || 500;
   let message = err.message || 'An unexpected error occurred.';
@@ -35,9 +31,24 @@ const errorHandler = (err, req, res, next) => {
     payload.stack = err.stack;
   }
 
+  // Generate unique error ID for tracking
+  const errorId = `ERR-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+
+  // Log error with ID for tracing
+  logger.error('Request error', {
+    errorId,
+    statusCode,
+    message,
+    url: req.originalUrl,
+    method: req.method,
+    ip: req.ip
+  });
+
   res.status(statusCode).json({
     status: 'error',
     message,
+    errorId, // Include error ID for support/debugging
+    timestamp: new Date().toISOString(),
     ...payload
   });
 };

@@ -1,9 +1,15 @@
 const mongoose = require('mongoose');
 
 const connectionOptions = {
-  maxPoolSize: 10,
+  maxPoolSize: 10,          // Maximum number of connections in the pool
+  minPoolSize: 2,           // Minimum number of connections to maintain
   serverSelectionTimeoutMS: 5000,
   socketTimeoutMS: 45000,
+  connectTimeoutMS: 10000,
+  heartbeatFrequencyMS: 10000, // Check connection health every 10 seconds
+  retryWrites: true,
+  retryReads: true,
+  w: 'majority',            // Write concern for data safety
 };
 
 const connectDB = async () => {

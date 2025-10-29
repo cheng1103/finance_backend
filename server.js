@@ -4,10 +4,17 @@ const helmet = require('helmet');
 const compression = require('compression');
 const morgan = require('morgan');
 const rateLimit = require('express-rate-limit');
+const mongoose = require('mongoose');
 require('dotenv').config();
 
 const { connectDB } = require('./config/database');
 const errorHandler = require('./middleware/errorHandler');
+const logger = require('./utils/logger');
+const { validateEnv } = require('./utils/env-validator');
+const { performanceMonitorWithStats, perfStats } = require('./middleware/performance');
+
+// Validate environment variables on startup
+validateEnv();
 
 // Import routes
 const authRoutes = require('./routes/auth');
@@ -50,7 +57,7 @@ const corsOptions = {
     if (allowedOrigins.indexOf(origin) !== -1) {
       callback(null, true);
     } else {
-      console.log('CORS blocked origin:', origin);
+      logger.warn('CORS blocked origin', { origin, allowedOrigins });
       callback(new Error('Not allowed by CORS'));
     }
   },
@@ -76,6 +83,9 @@ app.use(compression());
 // Request logging
 if (process.env.NODE_ENV === 'development') {
   app.use(morgan('dev'));
+} else {
+  // Production: Use Winston stream for structured logging
+  app.use(morgan('combined', { stream: logger.stream }));
 }
 
 // Rate limiting - Relaxed limits for better admin dashboard experience
@@ -118,6 +128,9 @@ app.use(generalLimiter);
 // Apply write limiter to all routes (will skip GET requests)
 app.use(writeLimiter);
 
+// Performance monitoring (before other middleware)
+app.use(performanceMonitorWithStats);
+
 // Parse JSON request body
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
@@ -136,14 +149,58 @@ app.get('/api/csrf-token', getCsrfToken);
 // Apply CSRF protection to all routes (except public ones defined in middleware)
 app.use(csrfProtection);
 
-// Health check endpoint
-app.get('/health', (req, res) => {
-  res.status(200).json({
+// Performance stats endpoint (for monitoring)
+app.get('/api/performance-stats', (req, res) => {
+  const stats = perfStats.getStats();
+  res.json({
     status: 'success',
-    message: 'Finance Platform API is running normally',
+    data: stats,
     timestamp: new Date().toISOString(),
-    environment: process.env.NODE_ENV
   });
+});
+
+// Health check endpoint
+app.get('/health', async (req, res) => {
+  const healthCheck = {
+    status: 'healthy',
+    timestamp: new Date().toISOString(),
+    environment: process.env.NODE_ENV,
+    uptime: process.uptime(),
+    services: {}
+  };
+
+  try {
+    // Check database connection
+    const dbState = mongoose.connection.readyState;
+    healthCheck.services.database = {
+      status: dbState === 1 ? 'up' : 'down',
+      state: ['disconnected', 'connected', 'connecting', 'disconnecting'][dbState]
+    };
+
+    // Check memory usage
+    const memUsage = process.memoryUsage();
+    healthCheck.services.memory = {
+      heapUsed: `${Math.round(memUsage.heapUsed / 1024 / 1024)}MB`,
+      heapTotal: `${Math.round(memUsage.heapTotal / 1024 / 1024)}MB`,
+      rss: `${Math.round(memUsage.rss / 1024 / 1024)}MB`
+    };
+
+    // Overall health status
+    if (dbState !== 1) {
+      healthCheck.status = 'degraded';
+    }
+
+    const statusCode = healthCheck.status === 'healthy' ? 200 : 503;
+    res.status(statusCode).json(healthCheck);
+
+  } catch (error) {
+    logger.error('Health check failed', error);
+    res.status(503).json({
+      status: 'unhealthy',
+      timestamp: new Date().toISOString(),
+      error: 'Health check failed'
+    });
+  }
 });
 
 // API routes
@@ -176,16 +233,17 @@ app.use(errorHandler);
 const PORT = process.env.PORT || 5000;
 
 const server = app.listen(PORT, () => {
-  console.log('[Server] Finance Platform API started successfully.');
-  console.log(`[Server] Listening on: http://localhost:${PORT}`);
-  console.log(`[Server] Environment: ${process.env.NODE_ENV}`);
-  console.log(`[Server] Health check: http://localhost:${PORT}/health`);
+  logger.info('Finance Platform API started successfully', {
+    port: PORT,
+    environment: process.env.NODE_ENV,
+    healthCheck: `/health`,
+  });
 });
 
 const shutdown = (signal) => {
-  console.log(`[Server] Received ${signal}. Beginning graceful shutdown.`);
+  logger.info(`Received ${signal}. Beginning graceful shutdown.`);
   server.close(() => {
-    console.log('[Server] HTTP server closed.');
+    logger.info('HTTP server closed. Exiting process.');
     process.exit(0);
   });
 };
