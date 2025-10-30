@@ -362,8 +362,8 @@ router.get('/stats', permissions.canView, async (req, res) => {
       success: true,
       data: {
         totalCustomers,
-        newCustomersToday,
-        newCustomersThisMonth,
+        newCustomersToday,  // ✅ 今日新用户（从00:00:00开始）
+        newCustomersThisMonth,  // ✅ 本月新用户（从1号00:00:00开始）
         visitsToday,
         visitsThisMonth,
         whatsappToday: whatsappStats.reduce((acc, stat) => acc + stat.count, 0),
