@@ -39,3 +39,5 @@ build/
 .vercel
 logs/
 backups/
+
+.env*.local
