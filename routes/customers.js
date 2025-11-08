@@ -395,6 +395,29 @@ router.get('/stats', permissions.canView, async (req, res) => {
     const totalApplications = totalLoanApplications + totalQuickApplications + totalDetailedInquiries;
     const applicationsInPeriod = loanApplicationsInPeriod + quickApplicationsInPeriod + detailedInquiriesInPeriod;
 
+    // New customers statistics for dashboard
+    const todayStart = new Date(today);
+    const monthStart = new Date(now);
+    monthStart.setDate(1);
+    monthStart.setHours(0, 0, 0, 0);
+
+    const newCustomersToday = await Customer.countDocuments({
+      createdAt: { $gte: todayStart }
+    });
+
+    const newCustomersThisMonth = await Customer.countDocuments({
+      createdAt: { $gte: monthStart }
+    });
+
+    // WhatsApp tracking statistics
+    const whatsappToday = await Customer.countDocuments({
+      lastContactedAt: { $gte: todayStart }
+    });
+
+    const whatsappThisMonth = await Customer.countDocuments({
+      lastContactedAt: { $gte: monthStart }
+    });
+
     // Monthly trend data (for charts)
     const monthlyData = await VisitorTracking.aggregate([
       {
@@ -427,6 +450,12 @@ router.get('/stats', permissions.canView, async (req, res) => {
         totalLoanApplications,
         totalQuickApplications,
         totalDetailedInquiries,
+
+        // Dashboard stats (for main dashboard)
+        newCustomersToday,
+        newCustomersThisMonth,
+        whatsappToday,
+        whatsappThisMonth,
 
         // Period-specific
         visitorsInPeriod,
