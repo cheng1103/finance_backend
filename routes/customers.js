@@ -304,74 +304,150 @@ router.post('/inquiries', applicationLimiter, detailedInquiryValidation, async (
 // GET /api/customers/stats - Get customer statistics (Admin only)
 router.get('/stats', permissions.canView, async (req, res) => {
   try {
-    const today = new Date();
+    const { period = 'all' } = req.query; // 1month, 3months, 6months, 1year, all
+
+    const now = new Date();
+    const today = new Date(now);
     today.setHours(0, 0, 0, 0);
 
-    const thisMonth = new Date();
-    thisMonth.setDate(1);
-    thisMonth.setHours(0, 0, 0, 0);
+    // Calculate start date based on period
+    let startDate = new Date(2020, 0, 1); // Default to 2020 for "all"
+    if (period === '1month') {
+      startDate = new Date(now);
+      startDate.setMonth(now.getMonth() - 1);
+    } else if (period === '3months') {
+      startDate = new Date(now);
+      startDate.setMonth(now.getMonth() - 3);
+    } else if (period === '6months') {
+      startDate = new Date(now);
+      startDate.setMonth(now.getMonth() - 6);
+    } else if (period === '1year') {
+      startDate = new Date(now);
+      startDate.setFullYear(now.getFullYear() - 1);
+    }
 
-    // Basic statistics
+    // Total counts (all time)
+    const totalVisitors = await VisitorTracking.countDocuments();
     const totalCustomers = await Customer.countDocuments();
-    const newCustomersToday = await Customer.countDocuments({
-      createdAt: { $gte: today }
-    });
-    const newCustomersThisMonth = await Customer.countDocuments({
-      createdAt: { $gte: thisMonth }
+
+    // Period-specific visitor stats
+    const visitorsInPeriod = await VisitorTracking.countDocuments({
+      visitDate: { $gte: startDate }
     });
 
-    // WhatsApp statistics
-    const whatsappStats = await WhatsAppTracking.aggregate([
+    // Get all applications from all customers
+    const customers = await Customer.find().lean();
+
+    // Count all applications (all time)
+    let totalLoanApplications = 0;
+    let totalQuickApplications = 0;
+    let totalDetailedInquiries = 0;
+
+    // Count applications in period
+    let loanApplicationsInPeriod = 0;
+    let quickApplicationsInPeriod = 0;
+    let detailedInquiriesInPeriod = 0;
+
+    // Applications by status (all time and period)
+    const applicationsByStatus = {
+      all: { pending: 0, approved: 0, rejected: 0, cancelled: 0 },
+      period: { pending: 0, approved: 0, rejected: 0, cancelled: 0 }
+    };
+
+    customers.forEach(customer => {
+      // Loan Applications
+      if (customer.loanApplications) {
+        totalLoanApplications += customer.loanApplications.length;
+        customer.loanApplications.forEach(app => {
+          applicationsByStatus.all[app.status] = (applicationsByStatus.all[app.status] || 0) + 1;
+          if (new Date(app.submittedAt) >= startDate) {
+            loanApplicationsInPeriod++;
+            applicationsByStatus.period[app.status] = (applicationsByStatus.period[app.status] || 0) + 1;
+          }
+        });
+      }
+
+      // Quick Applications
+      if (customer.quickApplications) {
+        totalQuickApplications += customer.quickApplications.length;
+        customer.quickApplications.forEach(app => {
+          applicationsByStatus.all[app.status] = (applicationsByStatus.all[app.status] || 0) + 1;
+          if (new Date(app.submittedAt) >= startDate) {
+            quickApplicationsInPeriod++;
+            applicationsByStatus.period[app.status] = (applicationsByStatus.period[app.status] || 0) + 1;
+          }
+        });
+      }
+
+      // Detailed Inquiries
+      if (customer.detailedInquiries) {
+        totalDetailedInquiries += customer.detailedInquiries.length;
+        customer.detailedInquiries.forEach(app => {
+          applicationsByStatus.all[app.status] = (applicationsByStatus.all[app.status] || 0) + 1;
+          if (new Date(app.submittedAt) >= startDate) {
+            detailedInquiriesInPeriod++;
+            applicationsByStatus.period[app.status] = (applicationsByStatus.period[app.status] || 0) + 1;
+          }
+        });
+      }
+    });
+
+    const totalApplications = totalLoanApplications + totalQuickApplications + totalDetailedInquiries;
+    const applicationsInPeriod = loanApplicationsInPeriod + quickApplicationsInPeriod + detailedInquiriesInPeriod;
+
+    // Monthly trend data (for charts)
+    const monthlyData = await VisitorTracking.aggregate([
       {
         $match: {
-          timestamp: { $gte: today }
+          visitDate: { $gte: startDate }
         }
       },
       {
         $group: {
-          _id: '$action',
-          count: { $sum: 1 }
-        }
-      }
-    ]);
-
-    const whatsappStatsMonth = await WhatsAppTracking.aggregate([
-      {
-        $match: {
-          timestamp: { $gte: thisMonth }
+          _id: {
+            year: { $year: '$visitDate' },
+            month: { $month: '$visitDate' }
+          },
+          visitors: { $sum: 1 }
         }
       },
       {
-        $group: {
-          _id: '$action',
-          count: { $sum: 1 }
-        }
+        $sort: { '_id.year': 1, '_id.month': 1 }
       }
     ]);
-
-    // Visit statistics
-    const visitsToday = await VisitorTracking.countDocuments({
-      visitDate: { $gte: today }
-    });
-
-    const visitsThisMonth = await VisitorTracking.countDocuments({
-      visitDate: { $gte: thisMonth }
-    });
 
     res.json({
       success: true,
+      period,
       data: {
+        // All time totals
+        totalVisitors,
         totalCustomers,
-        newCustomersToday,  // New customers registered today (from 00:00:00)
-        newCustomersThisMonth,  // New customers this month (from 1st 00:00:00)
-        visitsToday,
-        visitsThisMonth,
-        whatsappToday: whatsappStats.reduce((acc, stat) => acc + stat.count, 0),
-        whatsappThisMonth: whatsappStatsMonth.reduce((acc, stat) => acc + stat.count, 0),
-        whatsappBreakdown: {
-          today: whatsappStats,
-          thisMonth: whatsappStatsMonth
-        }
+        totalApplications,
+        totalLoanApplications,
+        totalQuickApplications,
+        totalDetailedInquiries,
+
+        // Period-specific
+        visitorsInPeriod,
+        applicationsInPeriod,
+        loanApplicationsInPeriod,
+        quickApplicationsInPeriod,
+        detailedInquiriesInPeriod,
+
+        // Status breakdown
+        applicationsByStatus,
+
+        // Conversion rate
+        conversionRate: totalVisitors > 0 ? ((totalApplications / totalVisitors) * 100).toFixed(2) : 0,
+        periodConversionRate: visitorsInPeriod > 0 ? ((applicationsInPeriod / visitorsInPeriod) * 100).toFixed(2) : 0,
+
+        // Chart data
+        monthlyData,
+
+        // Date range
+        startDate: startDate.toISOString(),
+        endDate: now.toISOString()
       }
     });
 
