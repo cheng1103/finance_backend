@@ -1,166 +1,90 @@
-#!/usr/bin/env node
-
-/**
- * MongoDB Database Backup Script
- *
- * This script creates backups of your MongoDB Atlas database.
- * For MongoDB Atlas, you should primarily use Atlas's built-in backup features.
- * This script is for additional manual backups or data exports.
- *
- * Usage: node scripts/backup-database.js
- */
-
-require('dotenv').config();
-const mongoose = require('mongoose');
+const { exec } = require('child_process');
 const fs = require('fs');
 const path = require('path');
-const logger = require('../utils/logger');
+require('dotenv').config();
 
-// Import models
-require('../models/User');
-require('../models/AdminUser');
-require('../models/LoanApplication');
-require('../models/Customer');
-
+// 配置
 const BACKUP_DIR = path.join(__dirname, '../backups');
-const COLLECTIONS_TO_BACKUP = [
-  'users',
-  'adminusers',
-  'loanapplications',
-  'customers',
-  'visitortrackings',
-  'whatsapptrackings'
-];
+const MONGODB_URI = process.env.MONGODB_URI || 'mongodb://localhost:27017/finance_db';
+const RETENTION_DAYS = 30;
 
-// Ensure backup directory exists
+// 确保备份目录存在
 if (!fs.existsSync(BACKUP_DIR)) {
   fs.mkdirSync(BACKUP_DIR, { recursive: true });
-  logger.info('Created backup directory', { path: BACKUP_DIR });
 }
 
-const connectDB = async () => {
-  try {
-    await mongoose.connect(process.env.MONGODB_URI, {
-      useNewUrlParser: true,
-      useUnifiedTopology: true,
-    });
-    logger.info('MongoDB connected for backup');
-  } catch (error) {
-    logger.error('MongoDB connection error', error);
-    process.exit(1);
-  }
-};
+async function performBackup() {
+  const timestamp = new Date().toISOString().split('T')[0];
+  const backupName = `backup-${timestamp}`;
+  const backupPath = path.join(BACKUP_DIR, backupName);
 
-const backupCollection = async (collectionName) => {
-  try {
-    const collection = mongoose.connection.db.collection(collectionName);
-    const data = await collection.find({}).toArray();
+  console.log(`开始备份数据库到: ${backupPath}`);
 
-    const timestamp = new Date().toISOString().replace(/:/g, '-').split('.')[0];
-    const filename = `${collectionName}_${timestamp}.json`;
-    const filepath = path.join(BACKUP_DIR, filename);
+  const command = `mongodump --uri=${MONGODB_URI} --out=${backupPath}`;
 
-    fs.writeFileSync(filepath, JSON.stringify(data, null, 2));
-
-    logger.info(`Backed up collection: ${collectionName}`, {
-      collection: collectionName,
-      documents: data.length,
-      file: filename,
-      size: `${(fs.statSync(filepath).size / 1024).toFixed(2)} KB`
-    });
-
-    return {
-      collection: collectionName,
-      documents: data.length,
-      file: filename
-    };
-  } catch (error) {
-    logger.error(`Error backing up collection: ${collectionName}`, error);
-    throw error;
-  }
-};
-
-const createManifest = (backupResults) => {
-  const timestamp = new Date().toISOString().replace(/:/g, '-').split('.')[0];
-  const manifest = {
-    backupDate: new Date().toISOString(),
-    timestamp,
-    database: process.env.MONGODB_URI.split('@')[1]?.split('/')[1] || 'unknown',
-    collections: backupResults,
-    totalDocuments: backupResults.reduce((sum, result) => sum + result.documents, 0)
-  };
-
-  const manifestPath = path.join(BACKUP_DIR, `manifest_${timestamp}.json`);
-  fs.writeFileSync(manifestPath, JSON.stringify(manifest, null, 2));
-
-  logger.info('Created backup manifest', { file: `manifest_${timestamp}.json` });
-  return manifestPath;
-};
-
-const cleanOldBackups = () => {
-  const retentionDays = 7; // Keep backups for 7 days
-  const cutoffDate = new Date();
-  cutoffDate.setDate(cutoffDate.getDate() - retentionDays);
-
-  const files = fs.readdirSync(BACKUP_DIR);
-  let deletedCount = 0;
-
-  files.forEach(file => {
-    const filepath = path.join(BACKUP_DIR, file);
-    const stats = fs.statSync(filepath);
-
-    if (stats.mtime < cutoffDate) {
-      fs.unlinkSync(filepath);
-      deletedCount++;
-      logger.info(`Deleted old backup: ${file}`);
-    }
-  });
-
-  if (deletedCount > 0) {
-    logger.info(`Cleaned up ${deletedCount} old backup files`);
-  }
-};
-
-const main = async () => {
-  try {
-    logger.info('=== Starting Database Backup ===');
-    logger.info(`Backup directory: ${BACKUP_DIR}`);
-
-    await connectDB();
-
-    const backupResults = [];
-
-    for (const collectionName of COLLECTIONS_TO_BACKUP) {
-      try {
-        const result = await backupCollection(collectionName);
-        backupResults.push(result);
-      } catch (error) {
-        logger.error(`Failed to backup ${collectionName}`, error);
-        // Continue with other collections
+  return new Promise((resolve, reject) => {
+    exec(command, (error) => {
+      if (error) {
+        console.error('备份失败:', error);
+        reject(error);
+        return;
       }
+      console.log('备份成功！');
+      resolve();
+    });
+  });
+}
+
+async function exportCSV() {
+  console.log('导出CSV数据...');
+  const mongoose = require('mongoose');
+  const { Parser } = require('json2csv');
+
+  try {
+    await mongoose.connect(MONGODB_URI);
+
+    const VisitorTracking = require('../models/VisitorTracking');
+    const LoanApplication = require('../models/LoanApplication');
+
+    const visitors = await VisitorTracking.find().lean();
+    if (visitors.length > 0) {
+      const parser = new Parser();
+      const csv = parser.parse(visitors);
+      fs.writeFileSync(path.join(BACKUP_DIR, `visitors-${new Date().toISOString().split('T')[0]}.csv`), csv);
+      console.log(`访客数据已导出: ${visitors.length} 条记录`);
     }
 
-    // Create manifest file
-    const manifestPath = createManifest(backupResults);
+    const applications = await LoanApplication.find().lean();
+    if (applications.length > 0) {
+      const parser = new Parser();
+      const csv = parser.parse(applications);
+      fs.writeFileSync(path.join(BACKUP_DIR, `applications-${new Date().toISOString().split('T')[0]}.csv`), csv);
+      console.log(`申请数据已导出: ${applications.length} 条记录`);
+    }
 
-    // Clean up old backups
-    cleanOldBackups();
-
-    logger.info('=== Backup Completed Successfully ===', {
-      collections: backupResults.length,
-      totalDocuments: backupResults.reduce((sum, r) => sum + r.documents, 0),
-      manifestPath
-    });
-
-    await mongoose.connection.close();
-    process.exit(0);
-
+    await mongoose.disconnect();
   } catch (error) {
-    logger.error('Backup failed', error);
-    await mongoose.connection.close();
+    console.error('CSV导出失败:', error);
+  }
+}
+
+async function main() {
+  console.log('数据库备份系统 v1.0');
+  console.log('备份时间:', new Date().toLocaleString('zh-CN'));
+  
+  try {
+    await performBackup();
+    await exportCSV();
+    console.log('备份完成！');
+    process.exit(0);
+  } catch (error) {
+    console.error('备份失败:', error);
     process.exit(1);
   }
-};
+}
 
-// Run backup
-main();
+if (require.main === module) {
+  main();
+}
+
+module.exports = { performBackup, exportCSV };

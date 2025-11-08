@@ -26,6 +26,7 @@ const userRoutes = require('./routes/users');
 const whatsappRoutes = require('./routes/whatsapp');
 const customerRoutes = require('./routes/customers');
 const trackingRoutes = require('./routes/tracking');
+const statisticsRoutes = require('./routes/statistics');
 
 const app = express();
 
@@ -214,6 +215,7 @@ app.use('/api', whatsappRoutes);
 // Apply sensitive limiter to customer routes (contains sensitive data)
 app.use('/api/customers', sensitiveOperationsLimiter, customerRoutes);
 app.use('/api/tracking', trackingRoutes);
+app.use('/api/admin/statistics', statisticsRoutes);
 
 // Simple form submission routes
 const simpleFormRoutes = require('./routes/simpleForm');
