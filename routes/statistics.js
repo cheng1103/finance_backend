@@ -218,26 +218,44 @@ router.get('/export', async (req, res) => {
     today.setHours(0, 0, 0, 0);
 
     let startDate = today;
+    let endDate = null; // null means "until now"
+
     if (period === 'week') {
       startDate = new Date(today);
       startDate.setDate(today.getDate() - 7);
     } else if (period === 'month') {
+      // 本月（从本月1号到现在）
+      startDate = new Date(today.getFullYear(), today.getMonth(), 1);
+    } else if (period === 'lastMonth') {
+      // 上个月（完整的上个月）
+      startDate = new Date(today.getFullYear(), today.getMonth() - 1, 1);
+      endDate = new Date(today.getFullYear(), today.getMonth(), 1);
+    } else if (period === 'last3Months') {
+      // 最近3个月
       startDate = new Date(today);
-      startDate.setMonth(today.getMonth() - 1);
+      startDate.setMonth(today.getMonth() - 3);
+    } else if (period === 'all') {
+      // 所有数据（从最开始）
+      startDate = new Date(2020, 0, 1); // 从2020年开始
     }
 
+    // 构建查询条件
+    const visitorQuery = endDate
+      ? { visitDate: { $gte: startDate, $lt: endDate } }
+      : { visitDate: { $gte: startDate } };
+
+    const applicationQuery = endDate
+      ? { createdAt: { $gte: startDate, $lt: endDate } }
+      : { createdAt: { $gte: startDate } };
+
     // 获取访客数据
-    const visitors = await VisitorTracking.find({
-      visitDate: { $gte: startDate }
-    })
+    const visitors = await VisitorTracking.find(visitorQuery)
       .select('visitDate page pageTitle ipAddress deviceType browser country city')
       .sort({ visitDate: -1 })
       .lean();
 
     // 获取申请数据
-    const applications = await LoanApplication.find({
-      createdAt: { $gte: startDate }
-    })
+    const applications = await LoanApplication.find(applicationQuery)
       .select('applicationNumber createdAt personalInfo.email personalInfo.phone loanDetails.amount status')
       .sort({ createdAt: -1 })
       .lean();
@@ -340,6 +358,103 @@ router.get('/export', async (req, res) => {
     res.status(500).json({
       success: false,
       error: 'Failed to export statistics',
+      details: error.message
+    });
+  }
+});
+
+/**
+ * 获取月度报告（可以查看上个月、上上个月等）
+ */
+router.get('/monthly-report', async (req, res) => {
+  try {
+    const { year, month } = req.query;
+
+    // 默认查询当前月
+    const now = new Date();
+    const targetYear = year ? parseInt(year) : now.getFullYear();
+    const targetMonth = month ? parseInt(month) : now.getMonth() + 1;
+
+    // 计算月份的开始和结束时间
+    const monthStart = new Date(targetYear, targetMonth - 1, 1);
+    const monthEnd = new Date(targetYear, targetMonth, 1);
+
+    // 上个月
+    const lastMonthStart = new Date(targetYear, targetMonth - 2, 1);
+    const lastMonthEnd = new Date(targetYear, targetMonth - 1, 1);
+
+    // 并行查询当前月和上个月数据
+    const [
+      visitorsThisMonth,
+      visitorsLastMonth,
+      applicationsThisMonth,
+      applicationsLastMonth,
+      dailyData
+    ] = await Promise.all([
+      // 当前月访客
+      VisitorTracking.countDocuments({
+        visitDate: { $gte: monthStart, $lt: monthEnd }
+      }),
+      // 上个月访客
+      VisitorTracking.countDocuments({
+        visitDate: { $gte: lastMonthStart, $lt: lastMonthEnd }
+      }),
+      // 当前月申请
+      LoanApplication.countDocuments({
+        createdAt: { $gte: monthStart, $lt: monthEnd }
+      }),
+      // 上个月申请
+      LoanApplication.countDocuments({
+        createdAt: { $gte: lastMonthStart, $lt: lastMonthEnd }
+      }),
+      // 每日分布
+      VisitorTracking.aggregate([
+        {
+          $match: {
+            visitDate: { $gte: monthStart, $lt: monthEnd }
+          }
+        },
+        {
+          $group: {
+            _id: { $dayOfMonth: '$visitDate' },
+            visitors: { $sum: 1 }
+          }
+        },
+        {
+          $sort: { _id: 1 }
+        }
+      ])
+    ]);
+
+    res.json({
+      success: true,
+      period: {
+        year: targetYear,
+        month: targetMonth,
+        monthName: monthStart.toLocaleDateString('zh-CN', { month: 'long', year: 'numeric' })
+      },
+      thisMonth: {
+        visitors: visitorsThisMonth,
+        applications: applicationsThisMonth,
+        conversionRate: visitorsThisMonth > 0 ? ((applicationsThisMonth / visitorsThisMonth) * 100).toFixed(2) : 0
+      },
+      lastMonth: {
+        visitors: visitorsLastMonth,
+        applications: applicationsLastMonth,
+        conversionRate: visitorsLastMonth > 0 ? ((applicationsLastMonth / visitorsLastMonth) * 100).toFixed(2) : 0
+      },
+      comparison: {
+        visitorsChange: visitorsLastMonth > 0 ? (((visitorsThisMonth - visitorsLastMonth) / visitorsLastMonth) * 100).toFixed(2) : 0,
+        applicationsChange: applicationsLastMonth > 0 ? (((applicationsThisMonth - applicationsLastMonth) / applicationsLastMonth) * 100).toFixed(2) : 0
+      },
+      dailyData: dailyData
+    });
+
+  } catch (error) {
+    console.error('Get monthly report error:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to fetch monthly report',
       details: error.message
     });
   }
