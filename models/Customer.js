@@ -169,7 +169,12 @@ const customerSchema = new mongoose.Schema({
     },
     ipAddress: String,
     userAgent: String,
-    referrer: String
+    referrer: String,
+    submissionType: {
+      type: String,
+      enum: ['browser', 'automated', 'unknown'],
+      default: 'unknown'
+    }
   },
 
   lastContact: {

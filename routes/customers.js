@@ -7,7 +7,7 @@ const WhatsAppTracking = require('../models/WhatsAppTracking');
 const AdminUser = require('../models/AdminUser');
 const { authenticateAdmin } = require('../middleware/auth');
 const { permissions } = require('../middleware/permissions');
-const { strictBotProtection } = require('../middleware/botProtection');
+const { detectSubmissionType, attachSubmissionType } = require('../middleware/submissionTypeDetector');
 
 // Rate limiting middleware for public endpoints
 const rateLimit = require('express-rate-limit');
@@ -65,8 +65,8 @@ const quickApplicationValidation = [
     .withMessage('Captcha verification required')
 ];
 
-// POST /api/customers/applications - Create quick application (Public with rate limit + bot protection)
-router.post('/applications', strictBotProtection, applicationLimiter, quickApplicationValidation, async (req, res) => {
+// POST /api/customers/applications - Create quick application (Public with rate limit + submission tracking)
+router.post('/applications', detectSubmissionType, applicationLimiter, quickApplicationValidation, async (req, res) => {
   try {
     // Check validation errors
     const errors = validationResult(req);
@@ -112,7 +112,7 @@ router.post('/applications', strictBotProtection, applicationLimiter, quickAppli
       });
     } else {
       // Create new customer with quick application
-      const newCustomer = new Customer({
+      let customerData = {
         name,
         email,
         phone,
@@ -133,8 +133,12 @@ router.post('/applications', strictBotProtection, applicationLimiter, quickAppli
           userAgent: req.get('User-Agent'),
           referrer: req.get('Referer') || ''
         }
-      });
+      };
 
+      // Attach submission type detection
+      customerData = attachSubmissionType(customerData, req);
+
+      const newCustomer = new Customer(customerData);
       await newCustomer.save();
 
       res.json({
@@ -208,8 +212,8 @@ const detailedInquiryValidation = [
     .withMessage('Captcha verification required')
 ];
 
-// POST /api/customers/inquiries - Create detailed inquiry (Public with rate limit + bot protection)
-router.post('/inquiries', strictBotProtection, applicationLimiter, detailedInquiryValidation, async (req, res) => {
+// POST /api/customers/inquiries - Create detailed inquiry (Public with rate limit + submission tracking)
+router.post('/inquiries', detectSubmissionType, applicationLimiter, detailedInquiryValidation, async (req, res) => {
   try {
     // Check validation errors
     const errors = validationResult(req);
@@ -256,7 +260,7 @@ router.post('/inquiries', strictBotProtection, applicationLimiter, detailedInqui
       });
     } else {
       // Create new customer with detailed inquiry
-      const newCustomer = new Customer({
+      let customerData = {
         name,
         email,
         phone,
@@ -281,8 +285,12 @@ router.post('/inquiries', strictBotProtection, applicationLimiter, detailedInqui
           userAgent: req.get('User-Agent'),
           referrer: req.get('Referer') || ''
         }
-      });
+      };
 
+      // Attach submission type detection
+      customerData = attachSubmissionType(customerData, req);
+
+      const newCustomer = new Customer(customerData);
       await newCustomer.save();
 
       res.json({
