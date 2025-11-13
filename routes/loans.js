@@ -2,6 +2,7 @@ const express = require('express');
 const { body, validationResult } = require('express-validator');
 const LoanApplication = require('../models/LoanApplication');
 const { authenticate, optionalAuth } = require('../middleware/auth');
+const { strictBotProtection } = require('../middleware/botProtection');
 
 const router = express.Router();
 
@@ -43,7 +44,7 @@ const loanApplicationValidation = [
     .withMessage('Credit score category is not valid.')
 ];
 
-router.post('/apply', optionalAuth, loanApplicationValidation, async (req, res) => {
+router.post('/apply', strictBotProtection, optionalAuth, loanApplicationValidation, async (req, res) => {
   try {
     const errors = validationResult(req);
     if (!errors.isEmpty()) {

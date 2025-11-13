@@ -7,6 +7,7 @@ const WhatsAppTracking = require('../models/WhatsAppTracking');
 const AdminUser = require('../models/AdminUser');
 const { authenticateAdmin } = require('../middleware/auth');
 const { permissions } = require('../middleware/permissions');
+const { strictBotProtection } = require('../middleware/botProtection');
 
 // Rate limiting middleware for public endpoints
 const rateLimit = require('express-rate-limit');
@@ -64,8 +65,8 @@ const quickApplicationValidation = [
     .withMessage('Captcha verification required')
 ];
 
-// POST /api/customers/applications - Create quick application (Public with rate limit)
-router.post('/applications', applicationLimiter, quickApplicationValidation, async (req, res) => {
+// POST /api/customers/applications - Create quick application (Public with rate limit + bot protection)
+router.post('/applications', strictBotProtection, applicationLimiter, quickApplicationValidation, async (req, res) => {
   try {
     // Check validation errors
     const errors = validationResult(req);
@@ -207,8 +208,8 @@ const detailedInquiryValidation = [
     .withMessage('Captcha verification required')
 ];
 
-// POST /api/customers/inquiries - Create detailed inquiry (Public with rate limit)
-router.post('/inquiries', applicationLimiter, detailedInquiryValidation, async (req, res) => {
+// POST /api/customers/inquiries - Create detailed inquiry (Public with rate limit + bot protection)
+router.post('/inquiries', strictBotProtection, applicationLimiter, detailedInquiryValidation, async (req, res) => {
   try {
     // Check validation errors
     const errors = validationResult(req);
