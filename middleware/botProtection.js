@@ -20,8 +20,17 @@ const ALLOWED_BOTS = [
 
 // IP黑名单（可以添加已知的恶意IP）
 const IP_BLACKLIST = [
-  '44.250.190.174',  // 已检测到的AWS bot IP
-  // 可以继续添加...
+  // Detected bot IPs from AWS servers (past 24 hours analysis)
+  '44.250.190.174',  // AWS bot - Nov 13, 2025
+  '54.189.136.231',  // AWS bot - Nov 13, 2025
+  '54.188.183.156',  // AWS bot - Nov 13, 2025
+  '34.219.37.125',   // AWS bot - Nov 13, 2025
+  '35.88.120.190',   // AWS bot - Nov 13, 2025
+  '35.94.96.25',     // AWS bot - Nov 12, 2025
+  '34.222.210.104',  // AWS bot - Nov 12, 2025
+  '54.200.90.220',   // AWS bot - Nov 12, 2025 (2 submissions)
+  '35.88.138.207',   // AWS bot - Nov 12, 2025
+  '35.94.97.181',    // AWS bot - Nov 12, 2025
 ];
 
 // IP白名单（允许的IP，比如你自己的办公室IP）

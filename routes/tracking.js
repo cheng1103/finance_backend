@@ -1,6 +1,26 @@
 ﻿const express = require('express');
 const router = express.Router();
+const rateLimit = require('express-rate-limit');
 const VisitorTracking = require('../models/VisitorTracking');
+const { strictBotProtection } = require('../middleware/botProtection');
+
+// Rate limiter specifically for WhatsApp clicks - prevent bot spam
+const whatsappClickLimiter = rateLimit({
+  windowMs: 60 * 60 * 1000, // 1 hour
+  max: 5, // Max 5 WhatsApp clicks per IP per hour
+  message: {
+    status: 'error',
+    message: 'Too many WhatsApp clicks. Please try again later.',
+    code: 'RATE_LIMIT_EXCEEDED'
+  },
+  standardHeaders: true,
+  legacyHeaders: false,
+  skip: (req) => {
+    // Don't rate limit if User-Agent looks like a real browser
+    const ua = req.get('User-Agent') || '';
+    return ua.includes('Mozilla') && ua.length > 80;
+  }
+});
 
 // POST /api/tracking/visit - record a page visit
 router.post('/visit', async (req, res) => {
@@ -58,9 +78,18 @@ router.post('/visit', async (req, res) => {
 });
 
 // POST /api/tracking/whatsapp-click - record a WhatsApp click
-router.post('/whatsapp-click', async (req, res) => {
+// Protected with bot detection and rate limiting
+router.post('/whatsapp-click', strictBotProtection, whatsappClickLimiter, async (req, res) => {
   try {
     const { phoneNumber, source, timestamp } = req.body;
+
+    // Log successful WhatsApp click (passed bot protection)
+    console.log('✅ [WhatsApp] Legitimate click:', {
+      ip: req.ip,
+      userAgent: req.get('User-Agent')?.substring(0, 60),
+      source,
+      phoneNumber
+    });
 
     // You can create a simplified WhatsAppTracking model or add to VisitorTracking
     const tracking = new VisitorTracking({
