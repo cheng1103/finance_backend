@@ -8,6 +8,7 @@ const AdminUser = require('../models/AdminUser');
 const { authenticateAdmin } = require('../middleware/auth');
 const { permissions } = require('../middleware/permissions');
 const { detectSubmissionType, attachSubmissionType } = require('../middleware/submissionTypeDetector');
+const leadDistributionAI = require('../services/leadDistributionAI');
 
 // Rate limiting middleware for public endpoints
 const rateLimit = require('express-rate-limit');
@@ -140,6 +141,32 @@ router.post('/applications', detectSubmissionType, applicationLimiter, quickAppl
 
       const newCustomer = new Customer(customerData);
       await newCustomer.save();
+
+      // 🤖 AI自动分配agent
+      try {
+        const assignedAgent = await leadDistributionAI.assignBestAgent(
+          newCustomer,
+          { amount: parseFloat(loanAmount), purpose: purpose }
+        );
+
+        if (assignedAgent) {
+          console.log(`✅ AI分配: ${newCustomer.name} → ${assignedAgent.name}`);
+
+          // 更新agent工作量
+          await leadDistributionAI.updateAgentWorkload(assignedAgent._id);
+
+          // 在客户记录中保存分配信息
+          newCustomer.assignedAgent = {
+            agentId: assignedAgent._id,
+            agentName: assignedAgent.name,
+            agentWhatsApp: assignedAgent.whatsappNumber,
+            assignedAt: new Date()
+          };
+          await newCustomer.save();
+        }
+      } catch (aiError) {
+        console.error('⚠️  AI分配失败（继续处理）:', aiError.message);
+      }
 
       res.json({
         success: true,

@@ -148,6 +148,21 @@ const customerSchema = new mongoose.Schema({
     default: 'new'
   },
 
+  // AI分配的agent信息
+  assignedAgent: {
+    agentId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'WhatsAppAgent'
+    },
+    agentName: String,
+    agentWhatsApp: String,
+    assignedAt: Date,
+    assignedBy: {
+      type: String,
+      default: 'AI'  // 'AI' 或 'manual'
+    }
+  },
+
   followUpNotes: [{
     date: { type: Date, default: Date.now },
     note: String,
